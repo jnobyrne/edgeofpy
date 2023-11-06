@@ -11,7 +11,7 @@ Features
 - Avalanche criticality measures
     - Avalanche detection
     - Avalanche distribution plotting
-    - Power law fitting (via 'powerlaw <https://github.com/jeffalstott/powerlaw>')
+    - Power law fitting (via 'powerlaw <https://github.com/jeffalstott/powerlaw>'_)
     - Deviation from criticality coefficients (DCC)
     - Shape collapse error
     - Shew's kappa
