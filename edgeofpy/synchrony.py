@@ -1,6 +1,7 @@
 """
 Edge-of-synchrony measures
 """
+
 import numpy as np
 import neurokit2 as nk
 import scipy

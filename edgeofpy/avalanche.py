@@ -1,4 +1,5 @@
-"""Avalanche-based measures
+"""
+Avalanche criticality measures
 """
 
 import numpy as np
