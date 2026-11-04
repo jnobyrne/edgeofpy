@@ -69,16 +69,17 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=3,
     Jannesari et al. (2020) Brain Structure and Function 225, 1169-83.
     """
 
-    if data.dtype is not np.dtype(int):
+    if not np.issubdtype(data.dtype, np.integer):
         # Detect events as the locations of peaks above threshold
         data = eop.binarized_events(data, threshold=threshold,
                                                thresh_type=thresh_type,
                                                null_value=0)
 
-    avalanches, events_one_chan, mean_iei, = _det_avls(data,
-                                                       s_freq=s_freq,
-                                                       time=time,
-                                                       max_iei=max_iei)
+    avalanches, events_one_chan = _det_avls(data, s_freq=s_freq, time=time,
+                                            max_iei=max_iei)
+    idx_events = np.flatnonzero(events_one_chan)
+    mean_iei = (np.mean(np.diff(idx_events)) / s_freq if len(idx_events) > 1
+                else np.nan)
 
     return avalanches, data, events_one_chan, mean_iei
 
@@ -324,14 +325,15 @@ def fit_third_exponent(sizes, durations, discrete=True, method='pl'):
         third = fit.power_law.alpha
 
     elif method == 'lsf':
+        # <S>(T) ~ T^(1/sigma nu z): the slope of log size on log duration
         def func(x, a, b):
             return a * x + b
-        (third, offset), _ = scipy.optimize.curve_fit(func, np.log(sizes),
-                                                      np.log(durations))
+        (third, offset), _ = scipy.optimize.curve_fit(func, np.log(durations),
+                                                      np.log(sizes))
 
     else:
         print('Chosen Method non valid. Method can be either lsf or pl.' )
-        third = np.NaN
+        third = np.nan
 
     return third
 
@@ -716,7 +718,6 @@ def _det_avls(events, s_freq, time, max_iei):
         return [], events_one_chan
 
     iei = np.diff(idx_events)
-    mean_iei = np.mean(iei) / s_freq
     # Detect avalanches
     avalanches = []
     avl_start = idx_events[0]
@@ -752,4 +753,4 @@ def _det_avls(events, s_freq, time, max_iei):
     # if the record cuts off in the middle of an avalanche, we discard the
     # last avalanche
 
-    return avalanches, events_one_chan, mean_iei
+    return avalanches, events_one_chan
