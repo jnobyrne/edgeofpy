@@ -19,9 +19,9 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=3,
     ----------
     data : 2d array
         Channel x sample. If the dtype is floating point, the array is taken
-          as the raw (cleaned) signal, and events are detected with
-          `binarized_events`. If the dtype is integer or bool, the array is
-          taken as the binarized event time series (bool is converted to int).
+        as the raw (cleaned) signal, and events are detected with
+        `binarized_events`. If the dtype is integer or bool, the array is
+        taken as the binarized event time series (bool is converted to int).
     s_freq : int
         Sampling frequency.
     time : 1d array (dtype='float')
