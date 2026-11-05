@@ -1,8 +1,9 @@
 """Phase diagram analysis
 """
 
+import json
 import multiprocessing as mp
-from itertools import repeat
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -14,19 +15,24 @@ def fit_pmem(data, iter_max : int = 5000000, error_max=1e-8, eta=.05,
 
     Parameters
     ----------
-    binarized_data : 2d array (dtype='float')
-        Multi-channel binary data, of shape `n_node` x `dat_len`.
+    data : 2d array (dtype='float')
+        Multi-channel binary data coded as -1/+1, of shape `n_node` x 
+        `dat_len`.
     iter_max : int
-        Maximum number of iterations of the gradient ascent. 
+        Maximum number of iterations of the gradient ascent. A
+        RuntimeWarning is issued if the fit has not converged by then.
     error_max : float
-        Maximum tolerated error, exclusive. 'ezaki' default: 1e-8
+        Maximum tolerated error, exclusive. For 'ezaki', the error is the
+        norm of the gradient divided by n_node * (n_node + 1); for 'donders',
+        it is the sum of squared gradient elements.
     eta : float
-        Learning rate.
+        Learning rate. With 'donders', it is halved whenever the error
+        increases.
     method : str
         PLM algorithm. 'donders' or 'ezaki'
     init_zero : bool
         If True, initialize h and J as zeros; if False, initialize as 
-        data mean and data correlation matrix, respectively.
+        data mean and data covariance matrix, respectively.
     verbose : bool
         If True, iteration and error will be printed at every step.
 
@@ -40,7 +46,7 @@ def fit_pmem(data, iter_max : int = 5000000, error_max=1e-8, eta=.05,
 
     References
     ----------
-    Ezaki et al. (2020) Nat Comm 3(1), 1-9.
+    Ezaki et al. (2020) Commun Biol 3, 52.
     Tkačik et al. (2015) PNAS 112(37), 11508–13.
     
     Acknowledgements
@@ -50,8 +56,14 @@ def fit_pmem(data, iter_max : int = 5000000, error_max=1e-8, eta=.05,
     The `'donders'` method was adapted from Matlab code by Hilbert 
     Kappen.
     """
+    data = np.asarray(data, dtype=float)
+    if not np.all(np.isin(data, (-1, 1))):
+        raise ValueError('data must be coded as -1/+1 (e.g. use '
+                         'binarized_events with null_value=-1).')
+    if method not in ('ezaki', 'donders'):
+        raise ValueError("method must be 'ezaki' or 'donders'.")
     n_node, dat_len = data.shape
-    dat_mean = data.mean(1, keepdims=True)
+    dat_mean = data.mean(1, keepdims=True) # n_node x 1
     dat_corr = data @ data.T / dat_len
     
     if init_zero:
@@ -59,49 +71,48 @@ def fit_pmem(data, iter_max : int = 5000000, error_max=1e-8, eta=.05,
         J = np.zeros((n_node, n_node))
     else:
         h = dat_mean.copy()
-        J = dat_corr.copy() - dat_mean ** 2
+        J = dat_corr - dat_mean @ dat_mean.T
         np.fill_diagonal(J, 0)
     
+    converged = False
     if method == 'ezaki':
         for t in range(iter_max):
-            if verbose:
-                print(f'Iteration {t}')
             h, J, error = _iter_fit_pmem(data, h, J, n_node, dat_len, dat_mean, 
                                     dat_corr, eta)
             if verbose:
-                print(f'Error = {error}')
+                print(f'Iteration {t}: error = {error}')
             if error < error_max:
-                print(f'Converged at iteration {t}')
+                converged = True
                 break
-        h = h.squeeze()
-    elif method == 'donders':
-        L = 1e10
-        t = 0
-        while L > error_max:
-            print(f'iteration {t-1}')
-            t += 1
-            sigma = np.tanh(J @ data + h[:, None])
-            print(sigma.shape)
+    else: # 'donders'
+        error_prev = np.inf
+        for t in range(iter_max):
+            sigma = np.tanh(J @ data + h) # n_node x dat_len
             C = sigma @ data.T / dat_len
             C = 0.5 * (C + C.T)
             dJ = dat_corr - C
             np.fill_diagonal(dJ, 0)
-            dh = dat_mean - np.sum(sigma, axis=1) / dat_len
+            dh = dat_mean - sigma.mean(axis=1, keepdims=True)
             J = J + eta * dJ
             h = h + eta * dh
-            L1 = np.sum(dJ**2) + np.sum(dh**2)
-            if t % 100 == 0:
-                print(f't = {t-1}, L1: {L1}')
-            if L1 > L:
+            error = np.sum(dJ**2) + np.sum(dh**2)
+            if verbose:
+                print(f'Iteration {t}: error = {error}, eta = {eta}')
+            if error < error_max:
+                converged = True
+                break
+            if error > error_prev:
                 eta = eta / 2
-                print(f't = {t-1}, eta = {eta}, L1 = {L1}')
-            L = L1
+            error_prev = error
 
-        print(f'Converged at iteration {t-1}')
+    if converged:
+        if verbose:
+            print(f'Converged at iteration {t}')
     else:
-        raise ValueError('Invalid method.')
-    
-    return h, J
+        warnings.warn(f'fit_pmem did not converge in {iter_max} iterations '
+                      f'(error = {error}).', RuntimeWarning, stacklevel=2)
+
+    return h.ravel(), J
 
 def _iter_fit_pmem(data, h, J, n_node, dat_len, dat_mean, dat_corr, eta):
     """Iterated part of pairwise maximum entropy model fitting"""
@@ -125,21 +136,24 @@ def fit_beta(data, h, J, iter_max : int = 5000000, error_max=0.00000001,
 
     Parameters
     ----------
-    binarized_data : 2d array (dtype='float')
-        Multi-channel binary data, of shape `n_node` x `dat_len`.
+    data : 2d array (dtype='float')
+        Multi-channel binary data coded as -1/+1, of shape `n_node` x 
+        `dat_len`.
     h : 1d array (dtype='float')
         The elementwise intrinsic field, i.e. the intrinsic 
         likelihood that S_i = 1.
     J : 2d array (dtype='float')
         The n_node x n_node interaction matrix.
     iter_max : int
-        Maximum number of iterations of the gradient ascent. 
+        Maximum number of iterations of the gradient ascent. A
+        RuntimeWarning is issued if the fit has not converged by then.
     error_max : float
-        Maximum tolerated error, exclusive. 'ezaki' default: 1e-8
+        Maximum tolerated error, exclusive.
     eta : float
         Learning rate.
     verbose : bool
-        If True, iteration and error will be printed at every step.
+        If True, the empirical energy, and the iteration, beta and error at
+        every step, will be printed.
 
     Returns
     -------
@@ -150,29 +164,36 @@ def fit_beta(data, h, J, iter_max : int = 5000000, error_max=0.00000001,
     ----------
     Ruffini et al. (2023) PLOS Comp Biol 19(2), e1010811.
     """
+    data = np.asarray(data, dtype=float)
     n_node, dat_len = data.shape
-    if h.ndim == 1:
-        h = h[:, None]
+    h = np.asarray(h, dtype=float).reshape(n_node, 1)
+    # copy with no self-interaction (the caller's J is not modified)
+    J = np.array(J, dtype=float)
+    np.fill_diagonal(J, 0)
     beta = 1.0
 
-    H = np.zeros(dat_len)
-    for t in range(dat_len):
-        sigma = data[:, t]#[:, None]
-        H[t] = ( np.inner(-0.5 * np.inner(J, sigma), sigma) 
-                - np.inner(h.squeeze(), sigma) )
-    H_mean = np.mean(H)
-    print(f'empirical H: {H_mean}')
+    # mean empirical energy: -0.5 * s.J.s - h.s, averaged over samples
+    H_mean = np.mean(-0.5 * np.sum(data * (J @ data), axis=0)
+                     - h.ravel() @ data)
+    if verbose:
+        print(f'empirical H: {H_mean}')
 
+    converged = False
     for t in range(iter_max):
-        if verbose:
-            print(f'Iteration {t}')
         beta, error = _iter_fit_beta(data, beta, h, J, H_mean, n_node, 
                                   dat_len, eta)
         if verbose:
-            print(f'Beta = {beta}, Error = {error}')
+            print(f'Iteration {t}: beta = {beta}, error = {error}')
         if error < error_max:
-            print(f'Converged at iteration {t}')
+            converged = True
             break
+
+    if converged:
+        if verbose:
+            print(f'Converged at iteration {t}')
+    else:
+        warnings.warn(f'fit_beta did not converge in {iter_max} iterations '
+                      f'(error = {error}).', RuntimeWarning, stacklevel=2)
     
     return beta
 
@@ -188,9 +209,8 @@ def _iter_fit_beta(data, beta, h, J, H, n_node, dat_len, eta):
     # make symmetrical
     two_pt_corr = 0.5 * (two_pt_corr + two_pt_corr.T)
 
-    # eliminate diagonal elements
+    # eliminate diagonal elements (J has a zero diagonal; see fit_beta)
     np.fill_diagonal(two_pt_corr, 0)
-    np.fill_diagonal(J, 0)
 
     model_mean_H = -np.sum(h * one_pt_corr) - 0.5 * np.sum(J * two_pt_corr)
     Ldbeta = H - model_mean_H
@@ -217,17 +237,21 @@ def metropolis(h, J, beta=1.0, n_iter=1000, rand_seed=0, rand_init=False,
     n_iter : int
         Number of iterations.
     rand_seed : int
-        Seed for random number generator.
+        Seed for the (local) random number generator. The global NumPy random
+        state is not modified.
     rand_init : bool
         If True, the initial spin configuration `sigma` will be randomly
         generated using rand_seed. If False, `sigma` will be all ones.
     save_every : int, optional
-        If not None, save the simulation every `save_every` iterations.
+        If not None, save a checkpoint every `save_every` samples (i.e. every
+        `save_every` * n_node steps), as `{save_path}_{n_samples}.npz`.
     save_path : str, optional
-        Path to save the simulation.
+        Path prefix to save the checkpoints.
     checkpoint_file : str, optional
         If a path is specified, the simulation will continue from this
-        checkpoint.
+        checkpoint, including the state of the random number generator. The
+        `h`, `J`, `beta` and `n_iter` stored in the checkpoint are used, and
+        the corresponding arguments are ignored.
 
     Returns
     -------
@@ -238,17 +262,17 @@ def metropolis(h, J, beta=1.0, n_iter=1000, rand_seed=0, rand_init=False,
     chi_u : float
         Uniform susceptibility.
     chi_sg : float
-        Spin-glass susceptiblity.
+        Spin-glass susceptibility.
     C : float
         Specific heat.
-    local_m : 2d array, dtype='float'
+    local_m : 1d array, dtype='float'
         Local mean.
     corr : 2d array, dtype='float'
         Correlation matrix.
 
     References
     ----------
-    Ezaki et al. (2020) Nat Comm 3(1), 1-9.
+    Ezaki et al. (2020) Commun Biol 3, 52.
     Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
     
     Acknowledgements
@@ -259,62 +283,72 @@ def metropolis(h, J, beta=1.0, n_iter=1000, rand_seed=0, rand_init=False,
     if save_every is not None and save_path is None:
         raise ValueError("Specify a path for saving checkpoints.")
     
-    np.random.seed(rand_seed)
-    n_node = len(h)
+    rng = np.random.RandomState(rand_seed) # local: global state untouched
 
     if checkpoint_file is None:
+        h = np.asarray(h, dtype=float).ravel()
+        n_node = len(h)
         local_m = np.zeros(n_node)
         corr = np.zeros((n_node, n_node))
         if rand_init:
-            sigma = np.sign( np.random.rand(n_node) - 0.5 )
+            sigma = np.sign( rng.rand(n_node) - 0.5 )
         else:
             sigma = np.ones(n_node) # all nodes start "on"
         n_step = n_iter * n_node
-        E = 0
-        E2 = 0        
+        E = 0.
+        E2 = 0.
+        t_start = 0
     
         # First, run out the transient for n_step steps
         for t in range(n_step):
-            n = np.random.randint(low=0, high=n_node)
+            n = rng.randint(low=0, high=n_node)
             dE = -2 * h[n] * sigma[n] - 2 * np.inner(J[:, n], sigma) * sigma[n]
             p = min(1, np.exp(dE * beta))
-            if np.random.random() < p:
+            if rng.random_sample() < p:
                 sigma[n] = -sigma[n]
 
     else:
         checkpoint = np.load(checkpoint_file)
+        if 'next_step' not in checkpoint:
+            raise ValueError('This checkpoint was saved by an older, '
+                             'incompatible version of edgeofpy.')
         h = checkpoint['h']
         J = checkpoint['J']
+        beta = float(checkpoint['beta'])
+        n_iter = int(checkpoint['n_iter'])
         sigma = checkpoint['sigma']
         local_m = checkpoint['local_m']
         corr = checkpoint['corr']
-        E = checkpoint['E']
-        E2 = checkpoint['E2']
-        n_step = checkpoint['n_step_remaining']
+        E = float(checkpoint['E'])
+        E2 = float(checkpoint['E2'])
+        n_node = len(h)
+        n_step = n_iter * n_node
+        t_start = int(checkpoint['next_step'])
+        _set_rng_state(rng, str(checkpoint['rng_state']))
   
     # Now, sample the steady-state every n_node steps
-    for t in range(n_step):
-        n = np.random.randint(low=0, high=n_node)
+    for t in range(t_start, n_step):
+        n = rng.randint(low=0, high=n_node)
         dE = -2 * h[n] * sigma[n] - 2 * np.inner(J[:, n], sigma) * sigma[n]
         p = min(1, np.exp(dE * beta))
-        if np.random.random() < p:
+        if rng.random_sample() < p:
             sigma[n] = -sigma[n]
             
         # Local mean and correlation matrix are updated every `n_node` steps.
         if t % n_node == 0:
             local_m = local_m + sigma
-            corr = corr + np.outer(sigma, sigma) # two minuses cancel out
-            energy = ( np.inner(-0.5 * np.inner(J, sigma), sigma) 
-                      - np.inner(h, sigma) )
-            E = E - energy
+            corr = corr + np.outer(sigma, sigma)
+            energy = -0.5 * sigma @ J @ sigma - h @ sigma
+            E = E + energy
             E2 = E2 + energy**2
 
-            # Save
-            if save_every is not None and t % (n_node * save_every) == 0:
-                n_step_remaining = n_step - t
-                np.savez(f'{save_path}_{int(t / n_node)}.npz', h=h, J=J,
-                         sigma=sigma, local_m=local_m, corr=corr, E=E, E2=E2,
-                         n_step_remaining=n_step_remaining)
+            # Save a checkpoint after every `save_every` samples
+            n_samples = t // n_node + 1
+            if save_every is not None and n_samples % save_every == 0:
+                np.savez(f'{save_path}_{n_samples}.npz', h=h, J=J, beta=beta,
+                         n_iter=n_iter, sigma=sigma, local_m=local_m,
+                         corr=corr, E=E, E2=E2, next_step=t + 1,
+                         rng_state=_get_rng_state(rng))
         
     local_m = local_m / n_iter
     corr = corr / n_iter
@@ -324,11 +358,24 @@ def metropolis(h, J, beta=1.0, n_iter=1000, rand_seed=0, rand_init=False,
     C = beta**2 * (E2 - E**2) / n_node
     q = np.inner(local_m, local_m) / n_node
     m = np.sum(local_m) / n_node
-    eigenspectrum = np.linalg.eig(covariance)[0]
-    chi_sg = beta**2 * np.inner(eigenspectrum, eigenspectrum) / n_node
+    # sum of squared eigenvalues of the (symmetric) covariance matrix, i.e.
+    # its squared Frobenius norm
+    chi_sg = beta**2 * np.sum(covariance ** 2) / n_node
     chi_u = beta * np.sum(covariance) / n_node
     
     return m, q, chi_u, chi_sg, C, local_m, corr
+
+def _get_rng_state(rng):
+    """Serialize the state of a RandomState as a JSON string."""
+    state = rng.get_state(legacy=False)
+    state['state']['key'] = state['state']['key'].tolist()
+    return json.dumps(state)
+
+def _set_rng_state(rng, state_json):
+    """Restore the state of a RandomState from a JSON string."""
+    state = json.loads(state_json)
+    state['state']['key'] = np.array(state['state']['key'], dtype=np.uint32)
+    rng.set_state(state)
 
 def sk_diagram(h, J, beta=1.0, mu_range=(-0.002, .0095), mu_step=.0005, 
                std_range=(.005, .1), std_step=.005, mu_width=None, 
@@ -378,14 +425,16 @@ def sk_diagram(h, J, beta=1.0, mu_range=(-0.002, .0095), mu_step=.0005,
     save_every : int, optional
         If not None, save the simulation every `save_every` iterations.
     save_path : str, optional
-        Path to save the simulation.
+        Path prefix to save the simulations. Each cell (i, j) of the diagram
+        is saved under `{save_path}_cell{i}-{j}`.
 
     Returns
     -------
     m : 2d array
-        Phase diagram in terms of the magnetization order parameter.
+        Phase diagram in terms of the magnetization order parameter, of
+        shape (len(x_range), len(y_range)).
     q : 2d array
-        Phase diagram in terms of the spin-glass order parameter..
+        Phase diagram in terms of the spin-glass order parameter.
     chi_u : 2d array
         Phase diagram in terms of the uniform susceptibility.
     chi_sg : 2d array
@@ -397,9 +446,15 @@ def sk_diagram(h, J, beta=1.0, mu_range=(-0.002, .0095), mu_step=.0005,
     y_range : 1d array
         Values for the standard deviation.
 
+    Notes
+    -----
+    With `multiproc=True`, scripts calling this function must be protected by
+    `if __name__ == '__main__':` on platforms that spawn new processes
+    (macOS, Windows).
+
     References
     ----------
-    Ezaki et al. (2020) Nat Comm 3(1), 1-9.
+    Ezaki et al. (2020) Commun Biol 3, 52.
     Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
     
     Acknowledgements
@@ -407,15 +462,16 @@ def sk_diagram(h, J, beta=1.0, mu_range=(-0.002, .0095), mu_step=.0005,
     This function was adapted from Matlab code by Takahiro Ezaki: 
     https://github.com/tkEzaki/phase_diagram_analysis.
     """
+    off_diag = ~np.eye(J.shape[0], dtype=bool)
     if mu_width is not None:
-        mu_actual = J.mean()
+        mu_actual = J[off_diag].mean()
         x_range = np.arange(mu_actual - mu_width / 2,
                             mu_actual + mu_width / 2, 
                             mu_step)
     else:
         x_range = np.arange(*mu_range, mu_step)
     if std_width is not None:
-        std_actual = J.std()
+        std_actual = J[off_diag].std()
         y_range = np.arange(std_actual - std_width / 2,
                             std_actual + std_width / 2, 
                             std_step)
@@ -429,39 +485,32 @@ def sk_diagram(h, J, beta=1.0, mu_range=(-0.002, .0095), mu_step=.0005,
     chi_sg = np.zeros(diagram_shape)
     C =      np.zeros(diagram_shape)
 
+    # one simulation per (mu, stdev) cell, each with its own checkpoint path
+    cells = [(i, j) for i in range(len(x_range)) for j in range(len(y_range))]
+    args = [(h, J, beta, x_range[i], y_range[j], n_iter, rand_seed, rand_init,
+             save_every, _cell_save_path(save_path, i, j))
+            for i, j in cells]
+
     if multiproc:
+        # NB: on macOS and Windows, scripts calling this function must be
+        # protected by `if __name__ == '__main__':`
         if n_cpu is None:
             n_cpu = mp.cpu_count()
-        pool = mp.Pool(n_cpu)
-        all_mu = []
-        all_stdev = []
-        for mu in x_range:
-            for stdev in y_range:
-                all_mu.append(mu)
-                all_stdev.append(stdev)
-        results = pool.starmap(trans_and_metropolis, 
-                               zip(repeat(h), repeat(J), repeat(beta), 
-                                   all_mu, all_stdev,
-                                   repeat(n_iter), repeat(rand_seed),
-                                   repeat(save_every), repeat(save_path)))
-        pool.close()
-        for i in range(len(diagram_shape)):
-            m[i // len(y_range), i % len(y_range)] = results[i][0]
-            q[i // len(y_range), i % len(y_range)] = results[i][1]
-            chi_u[i // len(y_range), i % len(y_range)] = results[i][2]
-            chi_sg[i // len(y_range), i % len(y_range)] = results[i][3]
-            C[i // len(y_range), i % len(y_range)] = results[i][4]
-        
+        with mp.Pool(n_cpu) as pool:
+            results = pool.starmap(trans_and_metropolis, args)
     else:
-        for i, mu in enumerate(x_range):
-            for j, stdev in enumerate(y_range):
-                J_tilde = affine_trans(J, mu, stdev)
-                (m[i, j], q[i, j], chi_u[i, j], chi_sg[i, j], C[i, j], 
-                _, _) = metropolis(h, J_tilde, beta=beta, n_iter=n_iter, 
-                                   rand_seed=rand_seed, rand_init=rand_init,
-                                   save_every=save_every, save_path=save_path)
+        results = [trans_and_metropolis(*a) for a in args]
+
+    for (i, j), res in zip(cells, results):
+        m[i, j], q[i, j], chi_u[i, j], chi_sg[i, j], C[i, j] = res[:5]
     
     return m, q, chi_u, chi_sg, C, x_range, y_range
+
+def _cell_save_path(save_path, i, j):
+    """Checkpoint path prefix for cell (i, j) of a phase diagram."""
+    if save_path is None:
+        return None
+    return f'{save_path}_cell{i}-{j}'
 
 def affine_trans(J, mu, stdev):
     """Linearly transform a square matrix to produce a new matrix with a 
@@ -479,24 +528,25 @@ def affine_trans(J, mu, stdev):
     Returns
     -------
     J_tilde : 2d array (dtype='float')
-        The transformed matrix with mean `mu` and standard deviation `stdev`.
+        The transformed matrix whose off-diagonal elements have mean `mu` and
+        standard deviation `stdev`. The diagonal is set to zero.
         
     References
     ----------
-    Ezaki et al. (2020) Nat Comm 3(1), 1-9.
+    Ezaki et al. (2020) Commun Biol 3, 52.
     
     Acknowledgements
     ----------------
     This function was adapted from Matlab code by Takahiro Ezaki: 
     https://github.com/tkEzaki/phase_diagram_analysis.
     """
-    diag_mask = np.eye(J.shape[0], dtype=bool)    
-    std_orig = np.std(J[~diag_mask])
-    mu_orig = np.mean(J[~diag_mask])
+    off_diag = ~np.eye(J.shape[0], dtype=bool)
+    std_orig = np.std(J[off_diag])
+    mu_orig = np.mean(J[off_diag])
     
-    J_tilde = ( (J - ( np.ones(J.shape) - np.eye(J.shape[0]) ) * mu_orig)
-                * stdev / std_orig
-                + np.ones(J.shape) * mu )
+    # transform the off-diagonal elements only (no self-interaction: J_ii = 0)
+    J_tilde = np.zeros(J.shape)
+    J_tilde[off_diag] = (J[off_diag] - mu_orig) * stdev / std_orig + mu
         
     return J_tilde
 
@@ -535,7 +585,7 @@ def trans_and_metropolis(h, J, beta, mu, stdev, n_iter=1000, rand_seed=0,
     chi_u : float
         Uniform susceptibility.
     chi_sg : float
-        Spin-glass susceptiblity.
+        Spin-glass susceptibility.
     C : float
         Specific heat.
     local_m : 2d array, dtype='float'
@@ -555,34 +605,59 @@ def trans_and_metropolis(h, J, beta, mu, stdev, n_iter=1000, rand_seed=0,
     
     return m, q, chi_u, chi_sg, C, local_m, corr
 
-def plot_sk(order_param, mu_values, sigma_values, J=None, title='SK diagram'):
+def plot_sk(order_param, mu_values, sigma_values, J=None, title='SK diagram',
+            ax=None):
     """Plot the SK diagram.
     
     Parameters
     ----------
-    order_param : str
-        The order parameter to plot, among {'m', 'q', 'chi_u', 'chi_sg', 'C'}
+    order_param : 2d array
+        The phase diagram of one order parameter (e.g. `m`, `q`, `chi_u`,
+        `chi_sg` or `C` as returned by `sk_diagram`), of shape
+        (len(mu_values), len(sigma_values)).
     mu_values : 1d array
         The mu (surrogate mean) values, on the x-axis.
     sigma_values : 1d array
         The sigma (surrogate standard deviation) values, on the y-axis
     J : 2d array of shape (N, N), optional
-        The interaction matrix, for plotting the working point. 
+        The interaction matrix, for plotting the working point (mean and
+        standard deviation of its off-diagonal elements).
     title : str, optional
         The plot title.
+    ax : matplotlib.axes.Axes, optional
+        Axes to plot into. If None, a new figure is created.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        Figure object.
+    ax : matplotlib.axes.Axes
+        Axes object.
     """
-    fig, ax = plt.subplots()
-    ax.imshow(order_param, origin='lower', aspect='auto',
-              extent=(mu_values[0], mu_values[-1], 
-                      sigma_values[0], sigma_values[-1]))
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    # pixel edges: half a step beyond the first and last values
+    half_dx = (mu_values[1] - mu_values[0]) / 2 if len(mu_values) > 1 else .5
+    half_dy = ((sigma_values[1] - sigma_values[0]) / 2
+               if len(sigma_values) > 1 else .5)
+    # order_param is indexed [mu, sigma]; imshow expects [row (y), col (x)]
+    im = ax.imshow(np.asarray(order_param).T, origin='lower', aspect='auto',
+                   extent=(mu_values[0] - half_dx, mu_values[-1] + half_dx,
+                           sigma_values[0] - half_dy,
+                           sigma_values[-1] + half_dy))
+    fig.colorbar(im, ax=ax)
     ax.set_xlabel('mean(J)')
-    ax.set_ylabel('var(J)')
+    ax.set_ylabel('std(J)')
     ax.set_title(title)
 
     if J is not None:
-        ax.plot(np.mean(J), np.std(J), marker='*', color='red', markersize=10)
+        off_diag = ~np.eye(J.shape[0], dtype=bool)
+        ax.plot(np.mean(J[off_diag]), np.std(J[off_diag]), marker='*',
+                color='red', markersize=10)
 
-    fig.show()
+    return fig, ax
 
 def ht_diagram(h, J, tail_cutoff,
                alpha_range=None, beta_range=None, mu_range=None, 
@@ -627,14 +702,15 @@ def ht_diagram(h, J, tail_cutoff,
     save_every : int, optional
         If not None, save the simulation every `save_every` iterations.
     save_path : str, optional
-        Path to save the simulation.
+        Path prefix to save the simulations. Each cell (i, j) of the diagram
+        is saved under `{save_path}_cell{i}-{j}`.
 
     Returns
     -------
     m : 2d array
         Phase diagram in terms of the magnetization order parameter.
     q : 2d array
-        Phase diagram in terms of the spin-glass order parameter..
+        Phase diagram in terms of the spin-glass order parameter.
     chi_u : 2d array
         Phase diagram in terms of the uniform susceptibility.
     chi_sg : 2d array
@@ -648,7 +724,7 @@ def ht_diagram(h, J, tail_cutoff,
 
     References
     ----------
-    Ezaki et al. (2020) Nat Comm 3(1), 1-9.
+    Ezaki et al. (2020) Commun Biol 3, 52.
     Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
     
     Acknowledgements
@@ -656,9 +732,16 @@ def ht_diagram(h, J, tail_cutoff,
     This function was adapted from Matlab code by Takahiro Ezaki: 
     https://github.com/tkEzaki/phase_diagram_analysis.
     """
-    # split tail from bulk
-    tail_mask = J > tail_cutoff
-    bulk = J[~tail_mask]
+    if alpha_range is None and mu_range is None:
+        raise ValueError('Specify either alpha_range or mu_range.')
+    if beta_range is None and sigma_range is None:
+        raise ValueError('Specify either beta_range or sigma_range.')
+
+    # split tail from bulk, excluding the diagonal (J_ii = 0)
+    off_diag = ~np.eye(J.shape[0], dtype=bool)
+    tail_mask = (J > tail_cutoff) & off_diag
+    bulk_mask = ~tail_mask & off_diag
+    bulk = J[bulk_mask]
     bulk_mean = bulk.mean()
     bulk_std = bulk.std()
 
@@ -691,11 +774,12 @@ def ht_diagram(h, J, tail_cutoff,
             # linear model
             J_tilde[tail_mask] = J_tilde[tail_mask] * beta + alpha
             # affine transformation
-            J_tilde[~tail_mask] = (bulk - bulk_mean) * (sigma / bulk_std) + mu
+            J_tilde[bulk_mask] = (bulk - bulk_mean) * (sigma / bulk_std) + mu
             (m[i, j], q[i, j], chi_u[i, j], chi_sg[i, j], C[i, j], 
             _, _) = metropolis(h, J_tilde, beta=metropolis_beta, n_iter=n_iter, 
                                 rand_seed=rand_seed, rand_init=rand_init,
-                                save_every=save_every, save_path=save_path)
+                                save_every=save_every,
+                                save_path=_cell_save_path(save_path, i, j))
     
     return m, q, chi_u, chi_sg, C, x_range, y_range
 
@@ -739,15 +823,19 @@ def heat_capacity(data, h, J, mode='capacity'):
     -------
     float
         The heat capacity (or specific heat).
+
+    Notes
+    -----
+    Computed at unit temperature (beta = 1): C = beta**2 * Var(E).
     """
-    data_len = data.shape[1]
-    E = np.zeros(data_len)
-    for i in range(data_len):
-        E[i] = ising_energy(data[:, i], h, J)
+    if mode not in ('capacity', 'specific'):
+        raise ValueError("mode must be 'capacity' or 'specific'.")
+    # energy of every sample: -0.5 * s.J.s - h.s
+    E = -0.5 * np.sum(data * (J @ data), axis=0) - h @ data
     heat = np.var(E)
     if mode == 'specific':
         heat = heat / data.shape[0]
-    return np.var(E)
+    return heat
 
 def energy_landscape_2d(sigma, length, flips, h, J):
     """Compute an arbitrary slice of the energy landscape for model {h, J}.
@@ -760,7 +848,7 @@ def energy_landscape_2d(sigma, length, flips, h, J):
         Axis length of the square energy landscape.
     flips : ndarray of shape (2 * length,)
         The sequence of spin indices to flip. The first half is for axis 1,
-        and the scond half for axis 2.
+        and the second half for axis 2.
     h : ndarray of shape (N,)
         External magnetic field vector.
     J : ndarray of shape (N, N)
