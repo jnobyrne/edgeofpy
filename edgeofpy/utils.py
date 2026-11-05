@@ -14,7 +14,7 @@ def binarized_events(data, threshold=3, thresh_type='both', null_value=0):
         Number of standard deviations.  Only signal excursions exceeding
         this threshold are considered events.
     thresh_type : str
-        If 'above', an event is detected when signal is greater than tresh.
+        If 'above', an event is detected when signal is greater than thresh.
         If 'below', an event is detected when signal is less than -thresh.
         If 'both', the signal above thresh and below -thresh is detected as an 
         event.
@@ -56,7 +56,7 @@ def time_bin_events(events, bin_len):
     Parameters
     ----------
     events : ndarray (dtype=int)
-        Signal with number of events occuring at every time step. Can be 2d 
+        Signal with number of events occurring at every time step. Can be 2d 
         (chan x time, with binary values) or 1d (time, with +int values).
     bin_len : int
         Length of time bin, in samples.
@@ -66,18 +66,42 @@ def time_bin_events(events, bin_len):
     binned : 1d array (dtype=int)
         Time series of number of events per consecutive time bin.
     """
-    if events.squeeze().ndim == 2:
-        events = np.sum(events, axis=0)    
-    if round(len(events) % bin_len) != 0:
-        pad_len = bin_len - len(events) % bin_len
-        #pad_len = ((len(events) // bin_len) + 1) * bin_len - len(events)
-        padded = np.concatenate((events, np.zeros(pad_len)))
-    else:
-        padded = events
-    binned = np.sum(padded.reshape(int(len(padded) / bin_len), bin_len), 
-                    axis=1)
-    
+    events = np.asarray(events)
+    if events.ndim == 2:
+        events = np.sum(events, axis=0)
+    if bin_len < 1:
+        raise ValueError('bin_len must be >= 1.')
+    remainder = len(events) % bin_len
+    if remainder:
+        # zero-pad the last, incomplete bin
+        pad = np.zeros(bin_len - remainder, dtype=events.dtype)
+        events = np.concatenate((events, pad))
+    binned = np.sum(events.reshape(-1, bin_len), axis=1)
+
     return binned
+
+def _sec_to_samples(duration, s_freq, name='duration'):
+    """Convert a duration in seconds to a whole number of samples (>= 1).
+
+    Parameters
+    ----------
+    duration : float
+        Duration, in seconds.
+    s_freq : float
+        Sampling frequency.
+    name : str
+        Name of the parameter, used in the error message.
+
+    Returns
+    -------
+    int
+        The duration in samples, rounded to the nearest integer.
+    """
+    n_samples = int(round(duration * s_freq))
+    if n_samples < 1:
+        raise ValueError(f'{name} * s_freq must be at least 1 sample '
+                         f'(got {duration * s_freq}).')
+    return n_samples
 
 def _detect_start_end(true_values):
     """From ndarray of bool values, return intervals of True values.
@@ -89,26 +113,22 @@ def _detect_start_end(true_values):
 
     Returns
     -------
-    ndarray (dtype='int')
-        N x 2 matrix with starting and ending times.
-        
+    ndarray (dtype='int') or None
+        N x 2 matrix with starting (inclusive) and ending (exclusive)
+        indices of each run of True values. None if there are no True values.
+
     Notes
     -----
-    Function borrowed from Wonambi: https://github.com/wonambi-python/wonambi
+    Adapted from Wonambi: https://github.com/wonambi-python/wonambi
     """
-    neg = np.zeros((1), dtype='bool')
-    int_values = np.asarray(np.concatenate((neg, true_values[:-1], neg)), 
-                            dtype='int')
-    # must discard last value to avoid axis out of bounds
-    cross_threshold = np.diff(int_values)
+    # pad with False on both sides so that runs touching either edge of the
+    # array are detected
+    padded = np.concatenate(([0], np.asarray(true_values, dtype=int), [0]))
+    cross_threshold = np.diff(padded)
 
-    event_starts = np.where(cross_threshold == 1)[0]
-    event_ends = np.where(cross_threshold == -1)[0]
+    event_starts = np.flatnonzero(cross_threshold == 1)
+    event_ends = np.flatnonzero(cross_threshold == -1)
 
     if len(event_starts):
-        events = np.vstack((event_starts, event_ends)).T
-
-    else:
-        events = None
-
-    return events
+        return np.vstack((event_starts, event_ends)).T
+    return None

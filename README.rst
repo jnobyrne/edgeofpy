@@ -27,7 +27,7 @@ Features
     - Pair correlation function (PCF)
     - Phase lag index (PLI)
     - Phase lag entropy (PLE)
-    - Global lability index (GLI)
+    - Global lability of synchronization (GLS)
     - Phase-locking avalanche detection
 
 - Ising model functions
@@ -52,12 +52,11 @@ Coming soon.
 
 Requirements
 ------------
-- Python 3.7 or later
-- numpy
-- scipy
-- matplotlib
-- powerlaw
-- neurokit2
+- Python 3.9 or later
+- numpy >= 1.22
+- scipy >= 1.7
+- matplotlib >= 3.5
+- powerlaw >= 1.5
 
 License
 -------
