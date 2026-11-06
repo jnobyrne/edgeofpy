@@ -24,5 +24,18 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[project.optional-dependencies]
+test = ["pytest>=7", "pytest-cov"]
+
 [project.urls]
 Repository = "https://github.com/jnobyrne/edgeofpy"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: slow tests (skip with: pytest -m 'not slow')",
+]
+
+[tool.ruff.lint]
+# pyflakes (undefined names, unused imports/variables) and syntax errors
+select = ["E4", "E7", "E9", "F"]
