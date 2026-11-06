@@ -9,7 +9,7 @@ description = "Tools for brain criticality estimation, especially for M/EEG"
 readme = "README.rst"
 license = "Apache-2.0"
 authors = [{ name = "Jordan O'Byrne", email = "jordan.obyrne@gmail.com" }]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.22",
     "scipy>=1.7",

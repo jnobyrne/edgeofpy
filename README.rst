@@ -52,7 +52,7 @@ Coming soon.
 
 Requirements
 ------------
-- Python 3.9 or later
+- Python 3.10 or later
 - numpy >= 1.22
 - scipy >= 1.7
 - matplotlib >= 3.5
