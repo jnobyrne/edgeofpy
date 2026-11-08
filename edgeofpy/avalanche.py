@@ -204,7 +204,7 @@ def plot_cdf(data, complementary=False, xlabel=None, ax=None):
 
     return fig
 
-def fit_powerlaw(data, xmin='min', xmax=None, discrete=True):
+def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
     """Fit data to a power law and compare the fit to similar
     distributions.
 
@@ -213,9 +213,12 @@ def fit_powerlaw(data, xmin='min', xmax=None, discrete=True):
     data : array-like
         List of avalanche features, e.g. avalanche sizes.
     xmin : int or float or str or None
-        The minimum value above which to fit the data. If None, xmin will be
-        algorithmically determined by best fit. If 'min', the minimum value
-        of `data` will be used.
+        The minimum value above which to fit the data. If None (default),
+        xmin is chosen automatically as the value that minimizes the
+        Kolmogorov-Smirnov distance between the data and the fitted power law
+        (Clauset et al., 2009). If 'min', the minimum value of `data` is used;
+        this biases the exponent if the distribution only follows a power law
+        above some value, as is typical for avalanches.
     xmax : int or float or str or None
         The maximum value below which to fit the data. If None, there is no
         upper limit. If 'max', the maximum value of `data` will be used.
@@ -274,6 +277,13 @@ def fit_powerlaw(data, xmin='min', xmax=None, discrete=True):
 
     Notes
     -----
+    .. versionchanged:: 0.1.0
+       The default `xmin` is None (automatic selection) instead of 'min'.
+
+    Automatic selection of `xmin` fits a power law above every candidate
+    value, which takes a few times longer than a fixed `xmin`, e.g. about a
+    minute for 50,000 continuous values.
+
     From Alstott et al. (2014): R is the loglikelihood ratio between the two
     candidate distributions. This number will be positive if the data is
     more likely in the first distribution, and negative if the data is
@@ -341,7 +351,8 @@ def fit_powerlaw(data, xmin='min', xmax=None, discrete=True):
             'E_R_sum': E,
             'L_R_sum': L,}
 
-def fit_third_exponent(sizes, durations, discrete=True, method='mean'):
+def fit_third_exponent(sizes, durations, discrete=True, method='mean',
+                       dur_range=None):
     """Estimate the third exponent, i.e. the exponent of the scaling relation
     <S>(T) ~ T^third between avalanche size S and duration T, by linear
     regression in log-log coordinates.
@@ -360,6 +371,12 @@ def fit_third_exponent(sizes, durations, discrete=True, method='mean'):
         'mean' to fit the mean size for each unique duration (default).
         'all' to fit the sizes and durations of all individual avalanches.
         'pl' and 'lsf' are deprecated aliases of 'mean' and 'all'.
+    dur_range : tuple of (float or None, float or None), optional
+        Only avalanches with durations in [min, max] (inclusive) are used,
+        typically the range over which the duration power law was fitted,
+        e.g. ``dur_range=(fit['xmin'], fit['xmax'])`` with
+        ``fit = fit_powerlaw(durations)``. Either bound may be None (no
+        limit). If None (default), all avalanches are used.
 
     Returns
     -------
@@ -378,6 +395,15 @@ def fit_third_exponent(sizes, durations, discrete=True, method='mean'):
         raise ValueError('sizes and durations must have the same shape.')
     if np.any(sizes <= 0) or np.any(durations <= 0):
         raise ValueError('sizes and durations must be strictly positive.')
+    if dur_range is not None:
+        low, high = dur_range
+        low = -np.inf if low is None else low
+        high = np.inf if high is None else high
+        if low > high:
+            raise ValueError('dur_range: the lower bound exceeds the upper '
+                             'bound.')
+        in_range = (durations >= low) & (durations <= high)
+        sizes, durations = sizes[in_range], durations[in_range]
 
     if method == 'mean':
         if not discrete:

@@ -27,6 +27,19 @@ def test_fit_powerlaw_recovers_exponent(rng):
     assert res['xmin'] == pytest.approx(data.min())
 
 
+def test_fit_powerlaw_default_xmin_is_automatic(rng):
+    # power law (alpha = 2.5) above 5, plus a non-power-law head below 5
+    tail = 5 * (1 - rng.random(4000)) ** (-1 / 1.5)
+    head = rng.uniform(1, 5, 2000)
+    data = np.concatenate((head, tail))
+    auto = quiet_fit_powerlaw(data, discrete=False)
+    assert auto['xmin'] == pytest.approx(5, rel=0.2)
+    assert auto['power_law_exp'] == pytest.approx(2.5, abs=0.1)
+    # starting at the minimum includes the head and biases the exponent
+    from_min = quiet_fit_powerlaw(data, xmin='min', discrete=False)
+    assert abs(from_min['power_law_exp'] - 2.5) > 0.3
+
+
 def test_fit_powerlaw_returns_documented_keys(rng):
     data = np.floor((1 - rng.random(5000)) ** (-1 / 1.5)).astype(int)
     res = quiet_fit_powerlaw(data, xmax='max')
@@ -52,6 +65,37 @@ def test_fit_third_exponent_noisy(rng):
     T = rng.integers(1, 100, 5000).astype(float)
     S = 2 * T ** 2 * rng.lognormal(0, 0.3, T.size)
     assert eop.fit_third_exponent(S, T) == pytest.approx(2, abs=0.05)
+
+
+@pytest.mark.parametrize('dur_range, mask', [
+    ((10, 50), lambda T: (T >= 10) & (T <= 50)),
+    ((10, None), lambda T: T >= 10),
+    ((None, 50), lambda T: T <= 50),
+    ((None, None), lambda T: np.ones(T.size, dtype=bool)),
+])
+def test_fit_third_exponent_dur_range(rng, dur_range, mask):
+    T = rng.integers(1, 100, 3000).astype(float)
+    S = T ** 2 * rng.lognormal(0, 0.3, T.size)
+    m = mask(T)
+    expected = eop.fit_third_exponent(S[m], T[m])
+    assert eop.fit_third_exponent(S, T, dur_range=dur_range) \
+        == pytest.approx(expected)
+
+
+def test_fit_third_exponent_dur_range_matters():
+    # a different scaling below T = 10: restricting the range recovers 2
+    T = np.repeat(np.arange(1, 100), 3).astype(float)
+    S = np.where(T < 10, T ** 1.2, T ** 2 * 10 ** -0.8)
+    assert eop.fit_third_exponent(S, T, dur_range=(10, None)) \
+        == pytest.approx(2)
+    assert eop.fit_third_exponent(S, T) < 1.9
+
+
+@pytest.mark.parametrize('dur_range', [(50, 10), (200, None)])
+def test_fit_third_exponent_invalid_dur_range(dur_range):
+    T = np.arange(1, 100, dtype=float)
+    with pytest.raises(ValueError):
+        eop.fit_third_exponent(T ** 2, T, dur_range=dur_range)
 
 
 @pytest.mark.parametrize('old, new', [('pl', 'mean'), ('lsf', 'all')])
@@ -285,11 +329,11 @@ def branching_avalanches():
 def exponents(avls):
     sizes = np.array([a['size'] for a in avls])
     durs = np.array([a['dur_bin'] for a in avls])
-    tau = quiet_fit_powerlaw(sizes, xmin=None)['power_law_exp']
-    fit_d = quiet_fit_powerlaw(durs, xmin=None)
+    tau = quiet_fit_powerlaw(sizes)['power_law_exp'] # xmin: automatic
+    fit_d = quiet_fit_powerlaw(durs)
     alpha = fit_d['power_law_exp']
-    tail = durs >= fit_d['xmin']
-    third = eop.fit_third_exponent(sizes[tail], durs[tail])
+    third = eop.fit_third_exponent(sizes, durs,
+                                   dur_range=(fit_d['xmin'], fit_d['xmax']))
     return tau, alpha, third
 
 
