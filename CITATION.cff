@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: >-
+  If you use edgeofpy in your work, please cite it as below. Please also cite
+  the original papers of the methods you use (listed in the function
+  docstrings).
+type: software
+title: "edgeofpy: tools for assessing the distance to criticality in brain dynamics"
+abstract: >-
+  edgeofpy is a Python package for estimating the distance to criticality in
+  brain dynamics, especially from M/EEG. It covers the edges of activity
+  propagation (neuronal avalanches, power-law exponents, deviation from
+  criticality coefficient, shape collapse, branching ratio), of synchrony
+  (phase lag index, phase lag entropy, pair correlation function, global
+  lability, phase-locking avalanches), of chaos (modified 0-1 chaos test,
+  lambda max) and of the phases of pairwise maximum-entropy (Ising) models.
+authors:
+  - given-names: Jordan
+    family-names: O'Byrne
+    orcid: "https://orcid.org/0000-0002-4924-4220"
+version: 0.1.0
+date-released: "2026-11-08"
+license: Apache-2.0
+repository-code: "https://github.com/jnobyrne/edgeofpy"
+keywords:
+  - criticality
+  - neuronal avalanches
+  - edge of chaos
+  - synchrony
+  - Ising model
+  - EEG
+  - MEG
+  - neuroscience

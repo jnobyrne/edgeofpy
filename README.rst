@@ -58,6 +58,17 @@ Requirements
 - matplotlib >= 3.5
 - powerlaw >= 1.5
 
+Citing edgeofpy
+---------------
+If you use edgeofpy, please cite it: use the "Cite this repository" button on
+GitHub, or the metadata in ``CITATION.cff``. Please also cite the original
+papers of the methods you use; they are listed in the function docstrings.
+``fit_powerlaw`` relies on the powerlaw package:
+
+    Alstott J, Bullmore E, Plenz D (2014). powerlaw: A Python package for
+    analysis of heavy-tailed distributions. PLoS ONE 9(1): e85816.
+    https://doi.org/10.1371/journal.pone.0085816
+
 License
 -------
 The project is licensed under the Apache 2.0 license.
