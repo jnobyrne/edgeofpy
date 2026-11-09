@@ -44,17 +44,17 @@ def fit_pmem(data, iter_max : int = 5000000, error_max=1e-8, eta=.05,
     J : 2d array (dtype='float')
         The estimated n_node x n_node interaction matrix.
 
-    References
-    ----------
-    Ezaki et al. (2020) Commun Biol 3, 52.
-    Tkačik et al. (2015) PNAS 112(37), 11508–13.
-    
-    Acknowledgements
-    ----------------
+    Notes
+    -----
     This function was partly adapted from Matlab code by Takahiro Ezaki: 
     https://github.com/tkEzaki/phase_diagram_analysis.
     The `'donders'` method was adapted from Matlab code by Hilbert 
     Kappen.
+
+    References
+    ----------
+    - Ezaki et al. (2020) Commun Biol 3, 52.
+    - Tkačik et al. (2015) PNAS 112(37), 11508–13.
     """
     data = np.asarray(data, dtype=float)
     if not np.all(np.isin(data, (-1, 1))):
@@ -270,15 +270,15 @@ def metropolis(h, J, beta=1.0, n_iter=1000, rand_seed=0, rand_init=False,
     corr : 2d array, dtype='float'
         Correlation matrix.
 
-    References
-    ----------
-    Ezaki et al. (2020) Commun Biol 3, 52.
-    Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
-    
-    Acknowledgements
-    ----------------
+    Notes
+    -----
     This function was adapted from Matlab code by Takahiro Ezaki: 
     https://github.com/tkEzaki/phase_diagram_analysis.
+
+    References
+    ----------
+    - Ezaki et al. (2020) Commun Biol 3, 52.
+    - Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
     """
     if save_every is not None and save_path is None:
         raise ValueError("Specify a path for saving checkpoints.")
@@ -452,15 +452,13 @@ def sk_diagram(h, J, beta=1.0, mu_range=(-0.002, .0095), mu_step=.0005,
     `if __name__ == '__main__':` on platforms that spawn new processes
     (macOS, Windows).
 
-    References
-    ----------
-    Ezaki et al. (2020) Commun Biol 3, 52.
-    Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
-    
-    Acknowledgements
-    ----------------
     This function was adapted from Matlab code by Takahiro Ezaki: 
     https://github.com/tkEzaki/phase_diagram_analysis.
+
+    References
+    ----------
+    - Ezaki et al. (2020) Commun Biol 3, 52.
+    - Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
     """
     off_diag = ~np.eye(J.shape[0], dtype=bool)
     if mu_width is not None:
@@ -531,14 +529,14 @@ def affine_trans(J, mu, stdev):
         The transformed matrix whose off-diagonal elements have mean `mu` and
         standard deviation `stdev`. The diagonal is set to zero.
         
+    Notes
+    -----
+    This function was adapted from Matlab code by Takahiro Ezaki: 
+    https://github.com/tkEzaki/phase_diagram_analysis.
+
     References
     ----------
     Ezaki et al. (2020) Commun Biol 3, 52.
-    
-    Acknowledgements
-    ----------------
-    This function was adapted from Matlab code by Takahiro Ezaki: 
-    https://github.com/tkEzaki/phase_diagram_analysis.
     """
     off_diag = ~np.eye(J.shape[0], dtype=bool)
     std_orig = np.std(J[off_diag])
@@ -722,15 +720,15 @@ def ht_diagram(h, J, tail_cutoff,
     y_range : 1d array
         Values for the standard deviation.
 
-    References
-    ----------
-    Ezaki et al. (2020) Commun Biol 3, 52.
-    Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
-    
-    Acknowledgements
-    ----------------
+    Notes
+    -----
     This function was adapted from Matlab code by Takahiro Ezaki: 
     https://github.com/tkEzaki/phase_diagram_analysis.
+
+    References
+    ----------
+    - Ezaki et al. (2020) Commun Biol 3, 52.
+    - Fischer & Hertz (1991) "Spin glasses". Cambridge UP.
     """
     if alpha_range is None and mu_range is None:
         raise ValueError('Specify either alpha_range or mu_range.')

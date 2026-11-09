@@ -25,14 +25,14 @@ def pcf(data):
     -------
     pcf : float
         The pair correlation function, a scalar value >= 0.
-    orpa: float
+    orpa : float
         Absolute value of the order parameter (degree of synchronicity)
         averaged over time, being equal to 0 when the oscillators’ phases are
         uniformly distributed in [0,2π ) and 1 when they all have the same
         phase.
-    orph_vector: 1d array (length = N_timepoints)
+    orph_vector : 1d array (length = N_timepoints)
         Order parameter phase for every moment in time.
-    orpa_vector: 1d array (length = N_timepoints)
+    orpa_vector : 1d array (length = N_timepoints)
         Absolute value of the order parameter (degree of synchronicity) for
         every moment in time.
 
@@ -60,12 +60,16 @@ def pcf(data):
     return pcf, orpa, orph_vector, orpa_vector
 
 def pli(data):
-    """Estimate the phase lag index (PLI) in a network of
-    oscillators, using the phase angle difference from a hilbert transform.
+    r"""Estimate the phase lag index (PLI) in a network of
+    oscillators, using the phase angle difference from a Hilbert transform.
 
-    defined by: PLI = |E⟨sign[∆Phi(t)]⟩|,
+    For each pair of oscillators, the PLI is
 
-    where Phi(t) corresponds to the time-series of phase angle differences.
+    .. math:: \mathrm{PLI} = \left| \left\langle \operatorname{sign}
+              \left( \sin \Delta\phi(t) \right) \right\rangle_t \right|,
+
+    where :math:`\Delta\phi(t)` is the time series of their phase angle
+    differences. The function returns the average over all pairs.
 
     Parameters
     ----------
@@ -87,8 +91,8 @@ def pli(data):
 
     References
     ----------
-    Stam et al. (2007) Hum. Brain Mapp., vol. 28, no. 11,
-    Lee et al. (2019) NeuroImage, vol. 188, pp. 228–238
+    - Stam et al. (2007) Hum Brain Mapp 28(11), 1178-93.
+    - Lee et al. (2019) NeuroImage, vol. 188, pp. 228–238
 
     """
     N_ch = data.shape[0]  # Nr of channels
@@ -129,7 +133,7 @@ def ple(data, m , tau):
         oscillators, and the second dimension is time.
     m : integer
         Embedding dimension (length of patterns to extract).
-    tau: integer
+    tau : integer
         Time delay / lag between successive pattern elements, in samples.
 
     Returns
@@ -140,8 +144,8 @@ def ple(data, m , tau):
 
     References
     ----------
-    Lee et al. (2019) NeuroImage, vol. 188, pp. 228–238
-    Lee et al. (2017) Hum. Brain Mapp. 38, 4980–4995.
+    - Lee et al. (2019) NeuroImage, vol. 188, pp. 228–238
+    - Lee et al. (2017) Hum. Brain Mapp. 38, 4980–4995.
 
     """
     N_ch = data.shape[0]  # Nr of channels
@@ -212,8 +216,8 @@ def complex_phase_relationship(data, s_freq=None, win_dur=None):
 
     References
     ----------
-    Kitzbichler et al. (2009) PLoS Comp Biol 5(3), e1000314.
-    Shriki et al. (2013) J Neurosci 33(16), 7079–90.
+    - Kitzbichler et al. (2009) PLoS Comp Biol 5(3), e1000314.
+    - Shriki et al. (2013) J Neurosci 33(16), 7079–90.
     """
     # TODO: something is wrong with the phases: they are all coming out 0 or 2pi
     if win_dur is not None and s_freq is None:
@@ -347,8 +351,8 @@ def global_lability(phase_locked, s_freq, delta_t_sec, norm=True):
 
     References
     ----------
-    Kitzbichler et al. (2009) PLoS Comp Biol 5(3), e1000314.
-    Botcharova et al. (2012) Phys Rev E 86(5), 051920.
+    - Kitzbichler et al. (2009) PLoS Comp Biol 5(3), e1000314.
+    - Botcharova et al. (2012) Phys Rev E 86(5), 051920.
     """
     N, _, T = phase_locked.shape
     delta_t = _sec_to_samples(delta_t_sec, s_freq, name='delta_t_sec')
@@ -459,21 +463,22 @@ def detect_phase_avls(data, s_freq, phase_range, time=None, max_iei=0.024,
     -------
     phase_avls : list of dict
         List of detected avalanches as dictionaries, with keys:
-            - start_time : float
-                Start time, in seconds since recording start.
-            - end_time : float
-                End time in seconds since recording start.
-            - size : int
-                Number of events (over all channels).
-            - dur_sec : float
-                Duration, in seconds, from first to last event in the
-                avalanche.
-            - dur_bin : int
-                Duration, in number of bins, rounded up.
-            - n_chan : int
-                Number of channels containing events.
-            - profile : 1d array
-                Number of events (active channels) in each successive time bin.
+
+        start_time : float
+            Start time, in seconds since recording start.
+        end_time : float
+            End time in seconds since recording start.
+        size : int
+            Number of events (over all channels).
+        dur_sec : float
+            Duration, in seconds, from first to last event in the
+            avalanche.
+        dur_bin : int
+            Duration, in number of bins, rounded up.
+        n_chan : int
+            Number of channels containing events.
+        profile : 1d array
+            Number of events (active channels) in each successive time bin.
     events_one_chan : 1d array
         Collapsed time series of phase-locking events.
     """

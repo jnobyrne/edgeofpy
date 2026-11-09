@@ -43,21 +43,22 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=3,
     -------
     avalanches : list of dict
         List of detected avalanches as dictionaries, with keys:
-            - start_time : float
-                Start time, in seconds since recording start.
-            - end_time : float
-                End time in seconds since recording start.
-            - size : int
-                Number of events (over all channels).
-            - dur_sec : float
-                Duration, in seconds, from first to last event in the
-                avalanche.
-            - dur_bin : int
-                Duration, in number of bins, rounded up.
-            - n_chan : int
-                Number of channels containing events.
-            - profile : 1d array
-                Number of events (active channels) in each successive time bin.
+
+        start_time : float
+            Start time, in seconds since recording start.
+        end_time : float
+            End time in seconds since recording start.
+        size : int
+            Number of events (over all channels).
+        dur_sec : float
+            Duration, in seconds, from first to last event in the
+            avalanche.
+        dur_bin : int
+            Duration, in number of bins, rounded up.
+        n_chan : int
+            Number of channels containing events.
+        profile : 1d array
+            Number of events (active channels) in each successive time bin.
     events_all_chan : 2d array of same shape as data, dtype=int
         Time series of zeros with ones at the event peaks.
     events_one_chan : 1d array
@@ -75,9 +76,9 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=3,
 
     References
     ----------
-    Benayoun et al. (2010) J Clin Neurophysiol 27(6) 458-64.
-    Shriki et al. (2013) J Neurosci 33(16), 7079–90.
-    Jannesari et al. (2020) Brain Structure and Function 225, 1169-83.
+    - Benayoun et al. (2010) J Clin Neurophysiol 27(6) 458-64.
+    - Shriki et al. (2013) J Neurosci 33(16), 7079–90.
+    - Jannesari et al. (2020) Brain Structure and Function 225, 1169-83.
     """
 
     data = np.asarray(data)
@@ -122,7 +123,7 @@ def plot_pdf(data, binning='d_lin', n_bins=100, xlabel=None, ylabel=None,
 
     Returns
     -------
-    fig: matplotlib.figure.Figure
+    fig : matplotlib.figure.Figure
         Figure object.
 
     Notes
@@ -181,7 +182,7 @@ def plot_cdf(data, complementary=False, xlabel=None, ax=None):
 
     Returns
     -------
-    fig: matplotlib.figure.Figure
+    fig : matplotlib.figure.Figure
         Figure object.
     """
     x = np.sort(np.asarray(data))
@@ -222,18 +223,19 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
     xmax : int or float or str or None
         The maximum value below which to fit the data. If None, there is no
         upper limit. If 'max', the maximum value of `data` will be used.
-    discrete: bool
+    discrete : bool
         Whether the data is discrete (integers). Default is True
 
     Returns
     -------
     dict
-        Dictionary with fit parameters, with keys/values:
+        Dictionary with fit parameters, with keys:
+
         fit : instance of powerlaw.Fit
             Object containing attributes of the power law fit.
         power_law_exp : float
             Exponent of the power law.
-        xmin: int or float
+        xmin : int or float
             The minimum value of the fitted data.
         xmax : int or float or None
             The maximum value of the fitted data (None if no upper limit).
@@ -290,14 +292,12 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
     more likely in the second distribution. The significance value for
     that direction is p.
 
+    This function was adapted from code by Marzieh Zare.
+
     References
     ----------
-    Alstott et al. (2014) PLoS one 9(1), e85777.
-    Clauset et al. (2009) SIAM review 51(4), 661-703.
-
-    Acknowledgements
-    ----------------
-    This function was adapted from code by Marzieh Zare.
+    - Alstott et al. (2014) PLoS ONE 9(1), e85777.
+    - Clauset et al. (2009) SIAM review 51(4), 661-703.
     """
     if xmin == 'min':
         xmin = min(data)
@@ -363,7 +363,7 @@ def fit_third_exponent(sizes, durations, discrete=True, method='mean',
         Sequence of avalanche sizes (> 0).
     durations : 1d array
         Corresponding sequence of avalanche durations (> 0).
-    discrete: bool
+    discrete : bool
         Whether the duration data is discrete (integers). If False, durations
         are rounded to 3 decimals before grouping. Only used when method is
         'mean'. Default is True.
@@ -447,8 +447,8 @@ def dcc(tau, alpha, third):
 
     References
     ----------
-    Ma et al. (2019) Neuron 104(4), 655-64.
-    Friedman et al. (2012) PRL 108, 208102.
+    - Ma et al. (2019) Neuron 104(4), 655-64.
+    - Friedman et al. (2012) PRL 108, 208102.
     """
     return np.abs( (alpha - 1) / (tau - 1) - third )
 
@@ -484,8 +484,8 @@ def shape_collapse_error(avalanches, gamma, interp_n=1000, min_dur=3,
 
     References
     ----------
-    Marshall et al. (2016) Front Physiol 7, 250.
-    Friedman et al. (2012) PRL 108, 208102.
+    - Marshall et al. (2016) Front Physiol 7, 250.
+    - Friedman et al. (2012) PRL 108, 208102.
     """
     # Select durations with enough avalanches
     durations = np.array([x['dur_bin'] for x in avalanches])
@@ -758,8 +758,8 @@ def branching_ratio(events, time_bin_size=None, s_freq=None):
 
     References
     ----------
-    Beggs & Plenz (2003) J Neurosci 23(35), 11167-77.
-    Priesemann et al. (2014) Front Syst Neurosci 8, 108.
+    - Beggs & Plenz (2003) J Neurosci 23(35), 11167-77.
+    - Priesemann et al. (2014) Front Syst Neurosci 8, 108.
     """
     if time_bin_size is not None:
         if s_freq is None:

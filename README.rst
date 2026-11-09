@@ -66,8 +66,8 @@ papers of the methods you use; they are listed in the function docstrings.
 ``fit_powerlaw`` relies on the powerlaw package:
 
     Alstott J, Bullmore E, Plenz D (2014). powerlaw: A Python package for
-    analysis of heavy-tailed distributions. PLoS ONE 9(1): e85816.
-    https://doi.org/10.1371/journal.pone.0085816
+    analysis of heavy-tailed distributions. PLoS ONE 9(1): e85777.
+    https://doi.org/10.1371/journal.pone.0085777
 
 License
 -------

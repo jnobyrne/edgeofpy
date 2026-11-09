@@ -35,7 +35,7 @@ def chaos_pipeline(data, sigma=0.5, denoise=False, downsample='minmax',
 
     Returns
     -------
-    K: float
+    K : float
         Median K-statistic.
 
     """
@@ -82,9 +82,9 @@ def z1_chaos_test(x, sigma=0.5, rand_seed=0):
 
     References
     ----------
-    Gottwald & Melbourne (2004) P Roy Soc A - Math Phy 460(2042), 603-11.
-    Gottwald & Melbourne (2009) SIAM J Applied Dyn Sys 8(1), 129-45.
-    Toker et al. (2022) PNAS 119(7), e2024455119.
+    - Gottwald & Melbourne (2004) P Roy Soc A - Math Phy 460(2042), 603-11.
+    - Gottwald & Melbourne (2009) SIAM J Applied Dyn Sys 8(1), 129-45.
+    - Toker et al. (2022) PNAS 119(7), e2024455119.
     """
     rng = np.random.RandomState(rand_seed) # local: global state untouched
     x = np.asarray(x, dtype=float)
@@ -240,13 +240,13 @@ def schreiber_denoise(x, r=None, chunk_size=256):
     xr : 1d array
         The array with the cleaned time series, of the same length as `x`.
 
+    Notes
+    -----
+    This code was adapted from Matlab code by Alexandros Leontitsis.
+
     References
     ----------
     Schreiber T (1993) Phys Rev E 47, 2401-2404.
-
-    Acknowledgements
-    ----------------
-    This code was adapted from Matlab code by Alexandros Leontitsis.
     """
     x = np.asarray(x, dtype=float).ravel()
     if r is None:
@@ -295,13 +295,13 @@ def takens_reconstruction(x, dim, tau):
     T : int
         Length of the phase space.
 
+    Notes
+    -----
+    This code was adapted from Matlab code by Alexandros Leontitsis.
+
     References
     ----------
     Takens F (1981) Lecture notes in Mathematics, 898.
-
-    Acknowledgements
-    ----------------
-    This code was adapted from Matlab code by Alexandros Leontitsis.
     """
     x = np.asarray(x)
     # Total points in phase space
