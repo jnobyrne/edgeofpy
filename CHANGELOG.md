@@ -18,8 +18,9 @@ change behaviour).
   fitted ranges, with warnings when they are too few), sensitivity to xmin,
   matched avalanche counts (`n_avalanches`) and bootstrap confidence
   intervals.
-- Worked examples in the documentation (sphinx-gallery), starting with an
-  end-to-end avalanche analysis of a simulated critical network.
+- Worked examples in the documentation (sphinx-gallery): an end-to-end
+  avalanche analysis of a simulated critical network, and estimating the DCC
+  reliably (choice of xmin, number of avalanches, comparing conditions).
 - `fit_shape_collapse`: the shape collapse exponent gamma, with the third
   exponent fitted over the same durations, `dcc_collapse`, the stability of
   gamma across `min_dur` and bootstrap confidence intervals;
