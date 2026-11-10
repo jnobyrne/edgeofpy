@@ -4,11 +4,13 @@ Avalanche criticality measures
 
 import warnings
 
-import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 import powerlaw
 
-from edgeofpy.utils import binarized_events, time_bin_events, _sec_to_samples
+from edgeofpy.utils import (binarized_events, time_bin_events,
+                            lattice_search, _sec_to_samples)
 
 def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=3,
                       thresh_type='both'):
@@ -334,7 +336,7 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
             'power_law_exp': fit.power_law.alpha,
             'xmin': fit.xmin,
             'xmax': fit.xmax,
-            'power_law_sigma': fit.power_law.sigma,
+            'power_law_sigma': fit.power_law.standard_err,
             'trunc_pl_exp': fit.truncated_power_law.alpha,
             'trunc_pl_xmin': fit.truncated_power_law.xmin,
             'trunc_pl_xmax': fit.truncated_power_law.xmax,
@@ -452,6 +454,273 @@ def dcc(tau, alpha, third):
     """
     return np.abs( (alpha - 1) / (tau - 1) - third )
 
+def estimate_dcc(sizes, durations, size_range=(None, None),
+                 dur_range=(None, None), discrete=True, third_method='mean',
+                 xmin_sensitivity=False, n_avalanches=None, n_subsamples=100,
+                 n_boot=0, ci=0.95, rand_seed=0):
+    """Estimate the deviation from criticality coefficient (DCC) with
+    consistent fitting ranges, diagnostics and confidence intervals.
+
+    The size and duration exponents tau and alpha are fitted with
+    `fit_powerlaw`, and the third exponent with `fit_third_exponent` over
+    the range of durations used to fit alpha. The DCC is then
+    ``|(alpha - 1) / (tau - 1) - third|`` (see `dcc`).
+
+    Parameters
+    ----------
+    sizes : 1d array
+        Avalanche sizes.
+    durations : 1d array
+        Corresponding avalanche durations.
+    size_range : tuple of (float or None, float or None)
+        (xmin, xmax) for the size power law. An xmin of None is chosen
+        automatically (Clauset et al., 2009); an xmax of None means no upper
+        limit. To compare conditions or subjects, fixed values are
+        recommended (see Notes).
+    dur_range : tuple of (float or None, float or None)
+        (xmin, xmax) for the duration power law, as for `size_range`. The
+        third exponent is fitted over the same range.
+    discrete : bool
+        Whether sizes and durations are discrete (integers).
+    third_method : str
+        Method of `fit_third_exponent`, 'mean' or 'all'.
+    xmin_sensitivity : bool
+        If True, the DCC is also computed with each xmin halved and doubled
+        (a 3 x 3 grid), to show how much it depends on the fitting ranges.
+    n_avalanches : int or None
+        If given, the estimates are the medians over `n_subsamples` random
+        subsets of `n_avalanches` avalanches (drawn without replacement), and
+        the bootstrap resamples have this size. Use it to compare conditions
+        with different numbers of avalanches, since the DCC is biased upward
+        with fewer avalanches. The fitting ranges are those of the full data.
+    n_subsamples : int
+        Number of subsets used when `n_avalanches` is given.
+    n_boot : int
+        Number of bootstrap resamples for confidence intervals (0: none).
+    ci : float
+        Coverage of the confidence intervals, e.g. 0.95.
+    rand_seed : int or numpy.random.Generator or None
+        Seed or random number generator for subsampling and bootstrapping.
+
+    Returns
+    -------
+    dict
+        Dictionary with the keys:
+
+        dcc : float
+            Deviation from criticality coefficient.
+        dcc_signed : float
+            Signed deviation, (alpha - 1) / (tau - 1) - third, of which the
+            DCC is the absolute value.
+        tau, alpha, third : float
+            Size, duration and third exponents.
+        size_range, dur_range : tuple
+            (xmin, xmax) used for the sizes and durations.
+        n_avalanches : int
+            Number of avalanches per estimate.
+        n_tail_sizes, n_tail_durations : int
+            Number of avalanches within the size and duration ranges (all
+            data).
+        size_decades, dur_decades : float
+            Number of decades spanned by the fitted size and duration ranges.
+        size_fit, dur_fit : dict
+            Outputs of `fit_powerlaw` on all data, including the
+            likelihood-ratio comparisons with other distributions.
+        dcc_ci, dcc_signed_ci : tuple or None
+            Bootstrap confidence intervals (None if `n_boot` is 0).
+        boot : dict or None
+            Bootstrap values of 'tau', 'alpha', 'third', 'dcc' and
+            'dcc_signed' (None if `n_boot` is 0).
+        dcc_xmin_grid : 2d array or None
+            DCC with the size xmin (rows) and duration xmin (columns)
+            multiplied by 0.5, 1 and 2 (None unless `xmin_sensitivity`).
+        dcc_xmin_range : tuple or None
+            Minimum and maximum of `dcc_xmin_grid`.
+        powerlaw_version : str
+            Version of the powerlaw package, worth reporting with results.
+
+    Warns
+    -----
+    UserWarning
+        If fewer than 100 avalanches fall within a fitted range, or a fitted
+        range spans less than one decade.
+
+    Notes
+    -----
+    The fitting ranges are chosen once, on all avalanches, and kept fixed
+    for the subsets and bootstrap resamples. Bootstrap resamples draw
+    avalanches with replacement, keeping each size with its duration, and
+    give percentile confidence intervals. They treat avalanches as
+    independent, so with temporally correlated avalanches the intervals are
+    somewhat too narrow.
+
+    Because the DCC is an absolute value, noise biases it upward: even for a
+    critical system, its confidence interval excludes 0 when there are few
+    avalanches. The signed deviation does not have this bias; a confidence
+    interval of `dcc_signed` that includes 0 indicates that the exponents are
+    consistent with the crackling-noise relation.
+
+    At the mean-field exponents (tau = 3/2, alpha = 2), small errors
+    delta_tau, delta_alpha and delta_third change the signed deviation by
+    about -4 delta_tau + 2 delta_alpha - delta_third (a first-order
+    approximation; the factors grow as tau approaches 1). The DCC is
+    therefore most sensitive to the size exponent and to the fitting ranges.
+
+    The automatic choice of xmin is not always stable: for two recordings of
+    the same system, or two subsets of one recording, it can select quite
+    different values (e.g. 3 for one and 21 for the other), which changes the
+    exponents and the DCC even though the underlying dynamics are the same.
+    When comparing conditions or subjects, fixed fitting ranges are
+    therefore preferable; `xmin_sensitivity` shows how much the DCC depends
+    on them.
+
+    References
+    ----------
+    - Ma et al. (2019) Neuron 104(4), 655-64.
+    - Clauset et al. (2009) SIAM Rev 51(4), 661-703.
+    """
+    sizes = np.asarray(sizes, dtype=float)
+    durations = np.asarray(durations, dtype=float)
+    if sizes.shape != durations.shape or sizes.ndim != 1:
+        raise ValueError('sizes and durations must be 1d arrays of the same '
+                         'length.')
+    if not 0 < ci < 1:
+        raise ValueError('ci must be between 0 and 1.')
+    n_total = sizes.size
+    if n_avalanches is not None and not 1 < n_avalanches <= n_total:
+        raise ValueError(f'n_avalanches must be between 2 and the number of '
+                         f'avalanches ({n_total}).')
+    rng = np.random.default_rng(rand_seed)
+
+    # fitting ranges, from all avalanches
+    size_fit = fit_powerlaw(sizes, xmin=size_range[0], xmax=size_range[1],
+                            discrete=discrete)
+    dur_fit = fit_powerlaw(durations, xmin=dur_range[0], xmax=dur_range[1],
+                           discrete=discrete)
+    s_range = (size_fit['xmin'], size_fit['xmax'])
+    d_range = (dur_fit['xmin'], dur_fit['xmax'])
+
+    n_tail = {}
+    decades = {}
+    for name, data, (low, high) in (('sizes', sizes, s_range),
+                                    ('durations', durations, d_range)):
+        upper = np.inf if high is None else high
+        in_range = data[(data >= low) & (data <= upper)]
+        n_tail[name] = in_range.size
+        top = high if high is not None else in_range.max(initial=low)
+        decades[name] = np.log10(top / low)
+        if n_tail[name] < 100:
+            warnings.warn(f'Only {n_tail[name]} avalanche {name} are within '
+                          f'the fitted range; the exponents are unreliable.',
+                          stacklevel=2)
+        if decades[name] < 1:
+            warnings.warn(f'The fitted range of avalanche {name} spans '
+                          f'{decades[name]:.2f} decades (< 1); a power law '
+                          f'cannot be established over such a short range.',
+                          stacklevel=2)
+
+    keys = ('tau', 'alpha', 'third', 'dcc', 'dcc_signed')
+
+    def estimate(idx):
+        return _dcc_fixed_ranges(sizes[idx], durations[idx], s_range,
+                                 d_range, discrete, third_method)
+
+    # point estimates
+    if n_avalanches is None:
+        n_used = n_total
+        point = {'tau': size_fit['power_law_exp'],
+                 'alpha': dur_fit['power_law_exp']}
+        point['third'] = fit_third_exponent(sizes, durations,
+                                            discrete=discrete,
+                                            method=third_method,
+                                            dur_range=d_range)
+        point['dcc_signed'] = ((point['alpha'] - 1) / (point['tau'] - 1)
+                               - point['third'])
+        point['dcc'] = abs(point['dcc_signed'])
+    else:
+        n_used = n_avalanches
+        subs = [estimate(rng.choice(n_total, n_used, replace=False))
+                for _ in range(n_subsamples)]
+        point = {k: np.nanmedian([s[k] for s in subs]) for k in keys}
+
+    # bootstrap
+    boot = dcc_ci = dcc_signed_ci = None
+    if n_boot:
+        reps = [estimate(rng.integers(n_total, size=n_used))
+                for _ in range(n_boot)]
+        boot = {k: np.array([r[k] for r in reps]) for k in keys}
+        q = 100 * np.array([(1 - ci) / 2, (1 + ci) / 2])
+        dcc_ci = tuple(np.nanpercentile(boot['dcc'], q))
+        dcc_signed_ci = tuple(np.nanpercentile(boot['dcc_signed'], q))
+
+    # sensitivity to xmin
+    grid = grid_range = None
+    if xmin_sensitivity:
+        factors = (0.5, 1, 2)
+        grid = np.full((3, 3), np.nan)
+        for i, fs in enumerate(factors):
+            for j, fd in enumerate(factors):
+                sr = (_scale_xmin(s_range[0], fs, discrete), s_range[1])
+                dr = (_scale_xmin(d_range[0], fd, discrete), d_range[1])
+                grid[i, j] = _dcc_fixed_ranges(sizes, durations, sr, dr,
+                                               discrete, third_method)['dcc']
+        grid_range = (np.nanmin(grid), np.nanmax(grid))
+
+    return {'dcc': point['dcc'],
+            'dcc_signed': point['dcc_signed'],
+            'tau': point['tau'],
+            'alpha': point['alpha'],
+            'third': point['third'],
+            'size_range': s_range,
+            'dur_range': d_range,
+            'n_avalanches': n_used,
+            'n_tail_sizes': n_tail['sizes'],
+            'n_tail_durations': n_tail['durations'],
+            'size_decades': decades['sizes'],
+            'dur_decades': decades['durations'],
+            'size_fit': size_fit,
+            'dur_fit': dur_fit,
+            'dcc_ci': dcc_ci,
+            'dcc_signed_ci': dcc_signed_ci,
+            'boot': boot,
+            'dcc_xmin_grid': grid,
+            'dcc_xmin_range': grid_range,
+            'powerlaw_version': getattr(powerlaw, '__version__', 'unknown')}
+
+
+def _scale_xmin(xmin, factor, discrete):
+    """Multiply xmin by factor (rounded and at least 1 for discrete data)."""
+    xmin = xmin * factor
+    return max(1, int(round(xmin))) if discrete else xmin
+
+
+def _pl_exponent(data, xmin, xmax, discrete):
+    """Power-law exponent for a fixed fitting range (NaN if it fails)."""
+    upper = np.inf if xmax is None else xmax
+    if np.sum((data >= xmin) & (data <= upper)) < 2:
+        return np.nan
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fit = powerlaw.Fit(data, xmin=xmin, xmax=xmax, discrete=discrete,
+                           verbose=False)
+        return fit.power_law.alpha
+
+
+def _dcc_fixed_ranges(sizes, durations, size_range, dur_range, discrete,
+                      third_method):
+    """Exponents and DCC for fixed fitting ranges."""
+    tau = _pl_exponent(sizes, *size_range, discrete)
+    alpha = _pl_exponent(durations, *dur_range, discrete)
+    try:
+        third = fit_third_exponent(sizes, durations, discrete=discrete,
+                                   method=third_method, dur_range=dur_range)
+    except (ValueError, TypeError, np.linalg.LinAlgError):
+        third = np.nan
+    signed = (alpha - 1) / (tau - 1) - third
+    return {'tau': tau, 'alpha': alpha, 'third': third,
+            'dcc': abs(signed), 'dcc_signed': signed}
+
+
 def shape_collapse_error(avalanches, gamma, interp_n=1000, min_dur=3,
                          min_avl=10):
     """Estimate the error of the shape collapse given a scaling factor
@@ -487,6 +756,15 @@ def shape_collapse_error(avalanches, gamma, interp_n=1000, min_dur=3,
     - Marshall et al. (2016) Front Physiol 7, 250.
     - Friedman et al. (2012) PRL 108, 208102.
     """
+    T_set, _, profiles = _collapse_profiles(avalanches, interp_n, min_dur,
+                                            min_avl)
+    return _collapse_error(T_set, profiles, gamma)
+
+
+def _collapse_profiles(avalanches, interp_n, min_dur, min_avl):
+    """Durations used for the shape collapse, and the mean profile of the
+    avalanches of each of these durations, interpolated over t/T in [0, 1].
+    """
     # Select durations with enough avalanches
     durations = np.array([x['dur_bin'] for x in avalanches])
     T_set = [T for T in np.unique(durations)
@@ -504,80 +782,20 @@ def shape_collapse_error(avalanches, gamma, interp_n=1000, min_dur=3,
                               axis=0)
         profiles[i, :] = np.interp(x_interp, np.linspace(0, 1, T),
                                    avg_profile)
+    return T_set, x_interp, profiles
 
-    # Rescale the profiles (y-axis) by T**gamma
-    rescaling_vector = np.asarray(T_set, dtype=float)[:, np.newaxis] ** gamma
-    rescaled_profiles = profiles / rescaling_vector
 
-    # Calculate collapse error
+def _rescale_profiles(T_set, profiles, gamma):
+    """Divide the mean profile of each duration T by T**gamma."""
+    return profiles / np.asarray(T_set, dtype=float)[:, np.newaxis] ** gamma
+
+
+def _collapse_error(T_set, profiles, gamma):
+    """Shape collapse error of mean profiles rescaled with gamma."""
+    rescaled_profiles = _rescale_profiles(T_set, profiles, gamma)
     variance = np.var(rescaled_profiles, axis=0)
     squared_span = np.square(np.ptp(rescaled_profiles))
-    collapse_error = np.mean(variance) / squared_span
-
-    return collapse_error
-
-def lattice_search(func, func_args, param_pos, step_0, n_levels=3,
-                   criterion='min'):
-    """Systematically search a function's solution space for a minimum
-    (maximum) value by sweeping a parameter of the function at greater and
-    greater precision.
-
-    Parameters
-    ----------
-    func : function
-        The function on which to perform the search.
-    func_args : list
-        Arguments of the function. For the parameter to be swept, enter
-        the range of parameter values (inclusive) as a tuple,
-        e.g. [arg1, (0, 5), arg3, arg4]
-    param_pos : int
-        The index, in func_args, of the parameter to be swept.
-    step_0 : float
-        The coarsest step of the search. The first sweep will iterate through
-        the range given in `func_args` at intervals of length `step_0`.
-    n_levels : int
-        Number of refinement sweeps after the initial sweep. Each successive
-        sweep is at 10x precision, within +/- one step of the previous
-        optimum.
-    criterion : str
-        The criterion to be fulfilled by the search. 'min' or 'max'.
-
-    Returns
-    -------
-    opt_input : float
-        The value of the swept parameter which optimizes the solution.
-    opt_output : float
-        The value of the optimal solution.
-
-    References
-    ----------
-    Marshall et al. (2016) Front Physiol 7, 250.
-    """
-    if criterion not in ('min', 'max'):
-        raise ValueError("criterion must be 'min' or 'max'.")
-    select = np.argmin if criterion == 'min' else np.argmax
-    func_args = list(func_args) # copy: the caller's list is not modified
-    start, end = func_args[param_pos]
-
-    def sweep(low, high, step):
-        # values from low to high (inclusive, up to rounding) every step
-        n_steps = int(np.floor((high - low) / step + 1e-9))
-        values = low + step * np.arange(n_steps + 1)
-        solutions = np.zeros(len(values))
-        for i, value in enumerate(values):
-            func_args[param_pos] = value
-            solutions[i] = func(*func_args)
-        best = select(solutions)
-        return values[best], solutions[best]
-
-    opt_input, opt_output = sweep(start, end, step_0)
-    step_n = step_0
-    for _ in range(n_levels):
-        low, high = max(opt_input - step_n, start), min(opt_input + step_n, end)
-        step_n = step_n / 10
-        opt_input, opt_output = sweep(low, high, step_n)
-
-    return opt_input, opt_output
+    return np.mean(variance) / squared_span
 
 def dcc_collapse(gamma, third):
     """The deviation from criticality coefficient for the scaling relation
@@ -628,6 +846,233 @@ def dcc_collapse_2(tau, alpha, gamma):
     Friedman et al. (2012) PRL 108, 208102.
     """
     return np.abs( (alpha - 1) / (tau - 1) - (gamma + 1) )
+
+def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
+                       n_levels=2, min_dur=3, min_avl=10, interp_n=1000,
+                       min_dur_check=(3, 5, 8, 12), n_boot=0, ci=0.95,
+                       rand_seed=0):
+    """Fit the shape collapse exponent gamma, and compare it with the third
+    exponent fitted over the same durations.
+
+    At criticality, the mean temporal profiles of avalanches of different
+    durations T collapse onto a single curve when time is rescaled by T and
+    the profiles by T**gamma, with gamma = third - 1. Gamma is found by
+    minimizing `shape_collapse_error` with `lattice_search`. The third
+    exponent is fitted (with `fit_third_exponent`) over exactly the
+    durations used for the collapse: with finite data, both exponents depend
+    on the range of durations, and fitting them over different ranges biases
+    their comparison.
+
+    Parameters
+    ----------
+    avalanches : list of dict
+        Detected avalanches, e.g. from `detect_avalanches`.
+    gamma_range : tuple of float
+        Range of gamma values searched.
+    step : float
+        Coarsest step of the search for gamma.
+    n_levels : int
+        Number of refinement levels of the search (each 10x finer).
+    min_dur : int
+        Minimum duration, in bins, for an avalanche duration to be included.
+    min_avl : int
+        Minimum number of avalanches of a given duration for that duration
+        to be included.
+    interp_n : int
+        Number of points for interpolating avalanche profiles.
+    min_dur_check : sequence of int or None
+        Values of `min_dur` for which gamma is also fitted, to check its
+        stability. A trend with `min_dur` indicates corrections to scaling
+        at short durations.
+    n_boot : int
+        Number of bootstrap resamples for confidence intervals (0: none).
+        Each resample repeats the fit, within +/- 0.5 of the gamma of all
+        data, which can take a few seconds.
+    ci : float
+        Coverage of the confidence intervals, e.g. 0.95.
+    rand_seed : int or numpy.random.Generator or None
+        Seed or random number generator for bootstrapping.
+
+    Returns
+    -------
+    dict
+        Dictionary with the keys:
+
+        gamma : float
+            Shape collapse exponent.
+        collapse_error : float
+            `shape_collapse_error` at `gamma`.
+        third : float
+            Third exponent, over the durations used for the collapse.
+        dcc_collapse : float
+            ``|third - 1 - gamma|`` (see `dcc_collapse`).
+        durations : 1d array
+            Durations used for the collapse.
+        n_avalanches_used : int
+            Number of avalanches with these durations.
+        gamma_by_min_dur : dict
+            Gamma for each value of `min_dur_check` (NaN where too few
+            durations qualify).
+        gamma_ci, dcc_collapse_ci : tuple or None
+            Bootstrap confidence intervals (None if `n_boot` is 0).
+        boot : dict or None
+            Bootstrap values of 'gamma', 'third' and 'dcc_collapse'.
+        x : 1d array
+            Rescaled time t/T of the profiles.
+        profiles : dict
+            Mean profile of each duration T, interpolated over `x` and
+            divided by T**gamma, for plotting with `plot_shape_collapse`.
+        raw_profiles : dict
+            Mean profile of each duration T (T values, one per time bin),
+            neither rescaled nor interpolated.
+
+    Notes
+    -----
+    Bootstrap resamples draw avalanches with replacement and give percentile
+    confidence intervals. They treat avalanches as independent, so with
+    temporally correlated avalanches the intervals are somewhat too narrow.
+
+    References
+    ----------
+    - Friedman et al. (2012) PRL 108, 208102.
+    - Marshall et al. (2016) Front Physiol 7, 250.
+    """
+    if not 0 < ci < 1:
+        raise ValueError('ci must be between 0 and 1.')
+    rng = np.random.default_rng(rand_seed)
+    avalanches = list(avalanches)
+
+    def fit(avls, g_range, min_dur):
+        T_set, x, profiles = _collapse_profiles(avls, interp_n, min_dur,
+                                                min_avl)
+        gamma, error = lattice_search(
+            lambda g: _collapse_error(T_set, profiles, g), [g_range], 0,
+            step, n_levels=n_levels)
+        in_set = [a for a in avls if a['dur_bin'] in set(T_set)]
+        third = fit_third_exponent([a['size'] for a in in_set],
+                                   [a['dur_bin'] for a in in_set])
+        return {'gamma': gamma, 'collapse_error': error, 'third': third,
+                'dcc_collapse': dcc_collapse(gamma, third), 'T_set': T_set,
+                'n_used': len(in_set), 'x': x, 'profiles': profiles}
+
+    res = fit(avalanches, gamma_range, min_dur)
+
+    gamma_by_min_dur = {}
+    for md in (min_dur_check or ()):
+        try:
+            gamma_by_min_dur[md] = fit(avalanches, gamma_range, md)['gamma']
+        except ValueError:
+            gamma_by_min_dur[md] = np.nan
+
+    boot = gamma_ci = dcc_ci = None
+    if n_boot:
+        g_range = (max(gamma_range[0], res['gamma'] - 0.5),
+                   min(gamma_range[1], res['gamma'] + 0.5))
+        keys = ('gamma', 'third', 'dcc_collapse')
+        boot = {k: np.full(n_boot, np.nan) for k in keys}
+        for b in range(n_boot):
+            idx = rng.integers(len(avalanches), size=len(avalanches))
+            try:
+                rep = fit([avalanches[i] for i in idx], g_range, min_dur)
+            except ValueError:
+                continue
+            for k in keys:
+                boot[k][b] = rep[k]
+        q = 100 * np.array([(1 - ci) / 2, (1 + ci) / 2])
+        gamma_ci = tuple(np.nanpercentile(boot['gamma'], q))
+        dcc_ci = tuple(np.nanpercentile(boot['dcc_collapse'], q))
+
+    scaled = _rescale_profiles(res['T_set'], res['profiles'], res['gamma'])
+    raw = {T: np.mean([a['profile'] for a in avalanches if a['dur_bin'] == T],
+                      axis=0)
+           for T in res['T_set']}
+    return {'gamma': res['gamma'],
+            'collapse_error': res['collapse_error'],
+            'third': res['third'],
+            'dcc_collapse': res['dcc_collapse'],
+            'durations': np.asarray(res['T_set']),
+            'n_avalanches_used': res['n_used'],
+            'gamma_by_min_dur': gamma_by_min_dur,
+            'gamma_ci': gamma_ci,
+            'dcc_collapse_ci': dcc_ci,
+            'boot': boot,
+            'x': res['x'],
+            'profiles': dict(zip(res['T_set'], scaled)),
+            'raw_profiles': raw}
+
+
+def plot_shape_collapse(result, collapsed=True, bin_dur=None, ax=None,
+                        cmap='viridis', colorbar=True):
+    """Plot the mean avalanche profiles of a shape collapse, rescaled
+    (collapsed) or as they are.
+
+    Parameters
+    ----------
+    result : dict
+        Output of `fit_shape_collapse`.
+    collapsed : bool
+        If True (default), plot the profiles against t/T, divided by
+        T**gamma. If False, plot the mean profiles as they are, against time
+        since avalanche start, as in the top panels of Fig. 3 in Friedman et
+        al. (2012).
+    bin_dur : float or None
+        Duration of one time bin of the profiles, in seconds, i.e. the
+        `max_iei` given to `detect_avalanches` (exactly: `max_iei` rounded
+        to whole samples). If given, uncollapsed profiles are plotted against
+        time in ms; if None, against time in bins. Ignored if `collapsed`.
+    ax : matplotlib.axes.Axes or None
+        Axes to plot into. If None, a new figure is created.
+    cmap : str or matplotlib.colors.Colormap
+        Colormap for the durations (log scale).
+    colorbar : bool
+        Whether to add a colorbar of the durations.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The figure.
+
+    Examples
+    --------
+    Profiles before and after the collapse, side by side:
+
+    >>> res = fit_shape_collapse(avalanches)
+    >>> fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+    >>> plot_shape_collapse(res, collapsed=False, bin_dur=0.004, ax=ax1,
+    ...                     colorbar=False)
+    >>> plot_shape_collapse(res, ax=ax2)
+
+    References
+    ----------
+    Friedman et al. (2012) PRL 108, 208102.
+    """
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = ax.figure
+    if isinstance(cmap, str):
+        cmap = matplotlib.colormaps[cmap]
+    durations = list(result['profiles'])
+    norm = matplotlib.colors.LogNorm(vmin=min(durations),
+                                     vmax=max(durations))
+    if collapsed:
+        for T, profile in result['profiles'].items():
+            ax.plot(result['x'], profile, color=cmap(norm(T)), lw=1)
+        ax.set_xlabel('t / T')
+        ax.set_ylabel(r'mean profile / $T^{\gamma}$')
+        ax.set_title(rf"collapsed, $\gamma$ = {result['gamma']:.3f}")
+    else:
+        scale = 1 if bin_dur is None else 1000 * bin_dur
+        for T, profile in result['raw_profiles'].items():
+            ax.plot(np.arange(T) * scale, profile, color=cmap(norm(T)), lw=1)
+        ax.set_xlabel('t (bins)' if bin_dur is None else 't (ms)')
+        ax.set_ylabel('mean profile (events per bin)')
+        ax.set_title('mean profiles')
+    if colorbar:
+        sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+        fig.colorbar(sm, ax=ax, label='duration T (bins)')
+    return fig
+
 
 def avl_repertoire(avalanches):
     """Yields the number of unique avalanche patterns, where the pattern of an

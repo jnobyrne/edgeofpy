@@ -132,3 +132,67 @@ def _detect_start_end(true_values):
     if len(event_starts):
         return np.vstack((event_starts, event_ends)).T
     return None
+
+
+def lattice_search(func, func_args, param_pos, step_0, n_levels=3,
+                   criterion='min'):
+    """Systematically search a function's solution space for a minimum
+    (maximum) value by sweeping a parameter of the function at greater and
+    greater precision.
+
+    Parameters
+    ----------
+    func : function
+        The function on which to perform the search.
+    func_args : list
+        Arguments of the function. For the parameter to be swept, enter
+        the range of parameter values (inclusive) as a tuple,
+        e.g. [arg1, (0, 5), arg3, arg4]
+    param_pos : int
+        The index, in func_args, of the parameter to be swept.
+    step_0 : float
+        The coarsest step of the search. The first sweep will iterate through
+        the range given in `func_args` at intervals of length `step_0`.
+    n_levels : int
+        Number of refinement sweeps after the initial sweep. Each successive
+        sweep is at 10x precision, within +/- one step of the previous
+        optimum.
+    criterion : str
+        The criterion to be fulfilled by the search. 'min' or 'max'.
+
+    Returns
+    -------
+    opt_input : float
+        The value of the swept parameter which optimizes the solution.
+    opt_output : float
+        The value of the optimal solution.
+
+    References
+    ----------
+    Marshall et al. (2016) Front Physiol 7, 250.
+    """
+    if criterion not in ('min', 'max'):
+        raise ValueError("criterion must be 'min' or 'max'.")
+    select = np.argmin if criterion == 'min' else np.argmax
+    func_args = list(func_args) # copy: the caller's list is not modified
+    start, end = func_args[param_pos]
+
+    def sweep(low, high, step):
+        # values from low to high (inclusive, up to rounding) every step
+        n_steps = int(np.floor((high - low) / step + 1e-9))
+        values = low + step * np.arange(n_steps + 1)
+        solutions = np.zeros(len(values))
+        for i, value in enumerate(values):
+            func_args[param_pos] = value
+            solutions[i] = func(*func_args)
+        best = select(solutions)
+        return values[best], solutions[best]
+
+    opt_input, opt_output = sweep(start, end, step_0)
+    step_n = step_0
+    for _ in range(n_levels):
+        low, high = max(opt_input - step_n, start), min(opt_input + step_n, end)
+        step_n = step_n / 10
+        opt_input, opt_output = sweep(low, high, step_n)
+
+    return opt_input, opt_output

@@ -20,10 +20,12 @@ Detection of neuronal avalanches, power-law fitting, DCC, shape collapse, branch
    fit_powerlaw
    fit_third_exponent
    dcc
+   estimate_dcc
    shape_collapse_error
-   lattice_search
    dcc_collapse
    dcc_collapse_2
+   fit_shape_collapse
+   plot_shape_collapse
    avl_repertoire
    avl_pattern_dissimilarity
    avl_branching_ratio
@@ -84,13 +86,14 @@ Pairwise maximum-entropy (Ising) models and phase diagrams.
 Utilities
 ---------
 
-Event detection and time binning.
+Event detection, time binning and a one-parameter grid search.
 
 .. autosummary::
    :toctree: generated/
 
    binarized_events
    time_bin_events
+   lattice_search
 
 Model systems
 -------------

@@ -9,10 +9,12 @@ from edgeofpy.avalanche import (detect_avalanches,
                                 fit_powerlaw,
                                 fit_third_exponent,
                                 dcc,
+                                estimate_dcc,
                                 shape_collapse_error,
-                                lattice_search,
                                 dcc_collapse,
                                 dcc_collapse_2,
+                                fit_shape_collapse,
+                                plot_shape_collapse,
                                 avl_repertoire,
                                 avl_pattern_dissimilarity,
                                 avl_branching_ratio,
@@ -49,6 +51,7 @@ from edgeofpy.ising import (fit_pmem,
 from edgeofpy import models # noqa: F401  (submodule: eop.models.<name>)
 from edgeofpy.utils import (binarized_events,
                             time_bin_events,
+                            lattice_search,
                             )
 
 try:
@@ -59,8 +62,9 @@ except PackageNotFoundError: # not installed, e.g. run from a source checkout
 __all__ = [
     # avalanche
     'detect_avalanches', 'plot_pdf', 'plot_cdf', 'fit_powerlaw',
-    'fit_third_exponent', 'dcc', 'shape_collapse_error', 'lattice_search',
-    'dcc_collapse', 'dcc_collapse_2', 'avl_repertoire',
+    'fit_third_exponent', 'dcc', 'estimate_dcc', 'shape_collapse_error',
+    'dcc_collapse', 'dcc_collapse_2', 'fit_shape_collapse',
+    'plot_shape_collapse', 'avl_repertoire',
     'avl_pattern_dissimilarity', 'avl_branching_ratio', 'branching_ratio',
     'susceptibility', 'fano_factor',
     # chaos
@@ -74,5 +78,5 @@ __all__ = [
     'fit_pmem', 'fit_beta', 'sk_diagram', 'metropolis', 'plot_sk',
     'ht_diagram', 'ising_energy', 'heat_capacity', 'energy_landscape_2d',
     # utils
-    'binarized_events', 'time_bin_events',
+    'binarized_events', 'time_bin_events', 'lattice_search',
 ]

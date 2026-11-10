@@ -12,9 +12,23 @@ change behaviour).
 - `edgeofpy.models`: simulations of systems with known critical points, for
   validating analyses: `branching_process`, `branching_network`, `kuramoto`,
   `logistic_map`, `linear_network` and `ising_samples`.
+- `estimate_dcc`: the DCC with consistent fitting ranges (the third exponent
+  is fitted over the duration range of the duration power law), the signed
+  deviation `dcc_signed`, diagnostics (avalanches and decades within the
+  fitted ranges, with warnings when they are too few), sensitivity to xmin,
+  matched avalanche counts (`n_avalanches`) and bootstrap confidence
+  intervals.
+- `fit_shape_collapse`: the shape collapse exponent gamma, with the third
+  exponent fitted over the same durations, `dcc_collapse`, the stability of
+  gamma across `min_dur` and bootstrap confidence intervals;
+  `plot_shape_collapse` plots the rescaled profiles.
 
 ### Changed
 
+- `lattice_search` moved to `edgeofpy.utils` (still available as
+  `eop.lattice_search`).
+- `fit_powerlaw` reads the standard error of the exponent from
+  `standard_err`, as `sigma` will be removed in powerlaw 2.1.
 - Requires powerlaw >= 2.0. On simulated critical avalanches, powerlaw 1.5
   underestimated the size exponent of discrete data (e.g. 1.43-1.46 instead
   of the true 1.5 at the same `xmin`), which changed the DCC by up to 0.2.
