@@ -1214,8 +1214,10 @@ def branching_ratio(events, time_bin_size=None, s_freq=None):
                                   name='time_bin_size')
         events = time_bin_events(events, bin_len)
     # masked_invalid excludes instances where the first bin contains no spikes
-    # (resulting in inf)
-    br = np.ma.masked_invalid(events[1:] / events[:-1]).mean()
+    # (resulting in inf or nan, without warnings)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        ratios = events[1:] / events[:-1]
+    br = np.ma.masked_invalid(ratios).mean()
 
     return br
 

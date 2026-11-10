@@ -16,7 +16,21 @@ extensions = [
     'sphinx.ext.viewcode',
     'numpydoc',
     'myst_parser',                        # to include CHANGELOG.md
+    'sphinx_gallery.gen_gallery',
 ]
+
+# Worked examples: every examples/plot_*.py script is run during the build
+# and rendered with its output and figures
+sphinx_gallery_conf = {
+    'examples_dirs': '../examples',
+    'gallery_dirs': 'auto_examples',
+    'filename_pattern': r'/plot_',
+    'download_all_examples': False,
+    'remove_config_comments': True,
+    'reference_url': {'edgeofpy': None},  # link functions to the API pages
+    'doc_module': ('edgeofpy',),
+    'backreferences_dir': 'generated/backreferences',
+}
 
 # API reference: one page per function, generated from the docstrings
 autosummary_generate = True

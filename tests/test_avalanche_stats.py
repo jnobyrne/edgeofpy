@@ -257,6 +257,14 @@ def test_branching_ratio_with_time_bins():
         == pytest.approx(2.0)
 
 
+def test_branching_ratio_no_warnings_for_silent_bins():
+    # regression: bins without events emitted divide-by-zero warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        assert eop.branching_ratio(np.array([0, 1, 2, 0, 0, 3, 0])) \
+            == pytest.approx((2 + 0 + 0) / 3)
+
+
 def test_branching_ratio_bins_require_s_freq():
     with pytest.raises(ValueError, match='s_freq'):
         eop.branching_ratio(np.ones(10), time_bin_size=0.01)
