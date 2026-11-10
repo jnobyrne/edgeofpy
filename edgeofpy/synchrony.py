@@ -15,6 +15,11 @@ def pcf(data):
     oscillators, signaling the emergence of long-range correlations between
     oscillators.
 
+    The PCF is N times the variance over time of the real part of the
+    complex order parameter z(t), computed in the frame rotating with the
+    collective (group) angular velocity of the oscillators, in which the
+    phase of z fluctuates around a fixed direction (Yoon et al., 2015).
+
     Parameters
     ----------
     data : 2d array
@@ -36,25 +41,41 @@ def pcf(data):
         Absolute value of the order parameter (degree of synchronicity) for
         every moment in time.
 
+    Notes
+    -----
+    The group angular velocity is estimated from the mean drift of the phase
+    of z(t) (a linear fit to the unwrapped phase). Without this change of
+    frame, the collective rotation of synchronized oscillators (e.g. an
+    alpha rhythm) makes the real part of z oscillate, and the variance then
+    grows with the degree of synchrony instead of peaking at the transition.
+
+    .. versionchanged:: 0.2.0
+       The PCF is computed in the rotating frame; previously it was computed
+       in the fixed frame, which gave values that increase monotonically with
+       synchrony.
+
     References
     ----------
     Yoon et al. (2015) Phys Rev E 91(3), 032814.
     """
-    N_ch = data.shape[0]  # Nr of channels
+    N_ch = data.shape[0]  # number of oscillators
 
-    # calculate Phase of signal
+    # instantaneous phases from the analytic signal
     inst_phase = np.angle(scipy.signal.hilbert(data, axis=1))
-    # get global synchronization order parameter z over time
-    z_vector = np.mean(np.exp(1j * inst_phase), axis = 0)
-    # get order phases
-    orph_vector = np.arctan2(np.imag(z_vector), np.real(z_vector))
-    #  r =|z| degree of synchronicity
-    orpa_vector = np.abs(z_vector)
+    # complex order parameter z(t) = r(t) exp(i psi(t))
+    z_vector = np.mean(np.exp(1j * inst_phase), axis=0)
+    orph_vector = np.angle(z_vector)  # psi(t)
+    orpa_vector = np.abs(z_vector)    # r(t), degree of synchrony
 
-    # get PCF = variance of real part of order parameter
-    # var(real(x)) == (mean(square(real(x))) - square(mean(real(x))))
-    pcf = N_ch * np.var(np.real(z_vector))
-    # time-averaged Order Parameter
+    # move to the frame rotating with the group angular velocity (estimated
+    # from the mean drift of psi), with the mean phase on the real axis
+    t = np.arange(z_vector.size)
+    group_velocity = np.polyfit(t, np.unwrap(orph_vector), 1)[0]
+    z_rot = z_vector * np.exp(-1j * group_velocity * t)
+    z_rot = z_rot * np.exp(-1j * np.angle(np.mean(z_rot)))
+    # PCF = N times the variance of the real part of z (Yoon et al., Eq. 61)
+    pcf = N_ch * np.var(np.real(z_rot))
+    # time-averaged order parameter
     orpa = np.mean(orpa_vector)
 
     return pcf, orpa, orph_vector, orpa_vector

@@ -8,7 +8,7 @@ edgeofpy requires Python 3.10 or later. Install it from PyPI with:
    pip install edgeofpy
 
 This also installs its dependencies: NumPy (>= 1.22), SciPy (>= 1.7),
-Matplotlib (>= 3.5) and powerlaw (>= 1.5).
+Matplotlib (>= 3.5) and powerlaw (>= 2.0).
 
 To upgrade to the latest version:
 

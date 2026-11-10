@@ -56,7 +56,7 @@ Requirements
 - numpy >= 1.22
 - scipy >= 1.7
 - matplotlib >= 3.5
-- powerlaw >= 1.5
+- powerlaw >= 2.0
 
 Citing edgeofpy
 ---------------

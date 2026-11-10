@@ -46,6 +46,7 @@ from edgeofpy.ising import (fit_pmem,
                             heat_capacity,
                             energy_landscape_2d,
                             )
+from edgeofpy import models # noqa: F401  (submodule: eop.models.<name>)
 from edgeofpy.utils import (binarized_events,
                             time_bin_events,
                             )

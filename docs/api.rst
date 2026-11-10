@@ -91,3 +91,22 @@ Event detection and time binning.
 
    binarized_events
    time_bin_events
+
+Model systems
+-------------
+
+.. currentmodule:: edgeofpy.models
+
+Simulations of systems with known critical points, for validating analyses
+and learning how the measures behave. These are used as
+``eop.models.kuramoto(...)``, for example.
+
+.. autosummary::
+   :toctree: generated/
+
+   branching_process
+   branching_network
+   kuramoto
+   logistic_map
+   linear_network
+   ising_samples

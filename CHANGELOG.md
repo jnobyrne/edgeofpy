@@ -5,6 +5,28 @@ All notable changes to edgeofpy are listed here. The format follows
 [semantic versioning](https://semver.org/) (before 1.0, minor versions may
 change behaviour).
 
+## [Unreleased]
+
+### Added
+
+- `edgeofpy.models`: simulations of systems with known critical points, for
+  validating analyses: `branching_process`, `branching_network`, `kuramoto`,
+  `logistic_map`, `linear_network` and `ising_samples`.
+
+### Changed
+
+- Requires powerlaw >= 2.0. On simulated critical avalanches, powerlaw 1.5
+  underestimated the size exponent of discrete data (e.g. 1.43-1.46 instead
+  of the true 1.5 at the same `xmin`), which changed the DCC by up to 0.2.
+
+### Fixed
+
+- `pcf` is computed in the frame rotating with the oscillators' group
+  angular velocity, as defined by Yoon et al. (2015). It was computed in the
+  fixed frame, where the collective rotation of synchronized oscillators
+  made it increase monotonically with synchrony instead of peaking at the
+  transition. **This changes the results of `pcf`.**
+
 ## [0.1.0] - 2026-11-08
 
 This release fixes about 40 bugs, many of which gave wrong results or crashed
@@ -126,5 +148,6 @@ change**; the items under "Changes that affect results" say which.
 
 First release on PyPI.
 
+[Unreleased]: https://github.com/jnobyrne/edgeofpy/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jnobyrne/edgeofpy/releases/tag/v0.1.0
 [0.0.1]: https://pypi.org/project/edgeofpy/0.0.1/

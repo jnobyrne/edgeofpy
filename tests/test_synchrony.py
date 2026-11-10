@@ -33,6 +33,23 @@ def test_pcf_identical_oscillators():
     assert orph_vector.shape == orpa_vector.shape == T.shape
 
 
+def test_pcf_peaks_at_synchronization_transition():
+    # regression: computed in the fixed frame, the PCF increased
+    # monotonically with coupling (0.5 -> 30) instead of peaking near K_c
+    pcf = {k: eop.pcf(eop.models.kuramoto(n_osc=64, coupling=k, duration=60,
+                                          rand_seed=0)[0])[0]
+           for k in (0, 8, 9, 10, 25)}
+    peak = max(pcf[8], pcf[9], pcf[10])  # finite-size K_c ~ 9 rad/s
+    assert peak > 2 * pcf[0] and peak > 10 * pcf[25]
+
+
+def test_pcf_rotating_frame_constant_lag():
+    # perfectly synchronized oscillators: z only rotates, so the PCF is ~0
+    pcf, orpa, _, _ = eop.pcf(lagged_sines([0, 0.1, 0.2, 0.3]))
+    assert pcf == pytest.approx(0, abs=1e-3)
+    assert orpa > 0.99
+
+
 def test_pcf_independent_oscillators(rng):
     b, a = scipy.signal.butter(4, [8, 12], btype='band', fs=FS)
     data = scipy.signal.filtfilt(b, a, rng.standard_normal((20, T.size)),
