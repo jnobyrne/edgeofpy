@@ -7,6 +7,33 @@ change behaviour).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-11
+
+This release adds simulations of systems with known critical points,
+helpers for estimating the DCC and the shape collapse reliably, and a
+documentation website with worked examples and a user guide. It also fixes
+`pcf` and corrects a bias in `lambda_max`. **Some results change**; the items
+under "Changes that affect results" say which.
+
+### Changes that affect results
+
+- `pcf` is computed in the frame rotating with the oscillators' group
+  angular velocity, as defined by Yoon et al. (2015). It was computed in the
+  fixed frame, where the collective rotation of synchronized oscillators
+  made it increase monotonically with synchrony instead of peaking at the
+  transition.
+- `lambda_max` corrects the dispersion of the covariances for the sampling
+  variance due to the finite number of trials (`bias_correction=True`).
+  Without it, the estimate was biased upward, e.g. 0.57 instead of 0.3 on a
+  simulated network with 100 trials. Use `bias_correction=False` for the
+  previous values.
+- `detect_avalanches` and `binarized_events` detect events beyond 2
+  standard deviations by default (previously 3). Pass `threshold=3` for the
+  previous values.
+- Requires powerlaw >= 2.0. On simulated critical avalanches, powerlaw 1.5
+  underestimated the size exponent of discrete data (e.g. 1.43-1.46 instead
+  of the true 1.5 at the same `xmin`), which changed the DCC by up to 0.2.
+
 ### Added
 
 - `edgeofpy.models`: simulations of systems with known critical points, for
@@ -18,52 +45,37 @@ change behaviour).
   fitted ranges, with warnings when they are too few), sensitivity to xmin,
   matched avalanche counts (`n_avalanches`) and bootstrap confidence
   intervals.
-- Worked examples in the documentation (sphinx-gallery): an end-to-end
-  avalanche analysis of a simulated critical network; estimating the DCC
-  reliably (choice of xmin, number of avalanches, comparing conditions); how
-  the avalanche measures change when tuning a network through its critical
-  point; the edge-of-chaos measures (0-1 test, lambda max) on systems with
-  known dynamics; fitting Ising models and locating them on the specific
-  heat curve and the SK phase diagram; and the synchrony measures (PCF, PLI,
-  PLE, GLS) across the Kuramoto transition.
-- A user guide in the documentation: choosing a measure, avalanche analysis
-  (time bin, fitting ranges, DCC, shape collapse), and comparing conditions
-  and subjects.
 - `fit_shape_collapse`: the shape collapse exponent gamma, with the third
   exponent fitted over the same durations, `dcc_collapse`, the stability of
   gamma across `min_dur` and bootstrap confidence intervals;
-  `plot_shape_collapse` plots the rescaled profiles.
+  `plot_shape_collapse` plots the profiles, rescaled or not.
+- Documentation website, https://edgeofpy.readthedocs.io: installation,
+  quick start, user guide, worked examples and API reference.
+- Worked examples (sphinx-gallery): an end-to-end avalanche analysis of a
+  simulated critical network; estimating the DCC reliably (choice of xmin,
+  number of avalanches, comparing conditions); how the avalanche measures
+  change when tuning a network through its critical point; the
+  edge-of-chaos measures (0-1 test, lambda max) on systems with known
+  dynamics; fitting Ising models and locating them on the specific heat
+  curve and the SK phase diagram; and the synchrony measures (PCF, PLI,
+  PLE, GLS) across the Kuramoto transition.
+- A user guide: choosing a measure, avalanche analysis (time bin, fitting
+  ranges, DCC, shape collapse), and comparing conditions and subjects.
+- `CITATION.cff` and a "Citing edgeofpy" section in the README.
 
 ### Changed
 
-- `detect_avalanches` and `binarized_events` detect events beyond 2
-  standard deviations by default (previously 3). **This changes the results
-  of analyses that relied on the default threshold**; pass `threshold=3` for
-  the previous values.
-- `lambda_max` corrects the dispersion of the covariances for the sampling
-  variance due to the finite number of trials (`bias_correction=True`).
-  Without it, the estimate was biased upward, e.g. 0.57 instead of 0.3 on a
-  simulated network with 100 trials. **This changes the results of
-  `lambda_max`**; use `bias_correction=False` for the previous values.
 - `susceptibility` accepts counts of active units over time (1d) with the
   new `n_units` argument, e.g. the summed activity of all channels.
 - `lattice_search` moved to `edgeofpy.utils` (still available as
   `eop.lattice_search`).
 - `fit_powerlaw` reads the standard error of the exponent from
   `standard_err`, as `sigma` will be removed in powerlaw 2.1.
-- Requires powerlaw >= 2.0. On simulated critical avalanches, powerlaw 1.5
-  underestimated the size exponent of discrete data (e.g. 1.43-1.46 instead
-  of the true 1.5 at the same `xmin`), which changed the DCC by up to 0.2.
 
 ### Fixed
 
 - `branching_ratio` no longer emits divide-by-zero warnings for time bins
   without events (the result is unchanged).
-- `pcf` is computed in the frame rotating with the oscillators' group
-  angular velocity, as defined by Yoon et al. (2015). It was computed in the
-  fixed frame, where the collective rotation of synchronized oscillators
-  made it increase monotonically with synchrony instead of peaking at the
-  transition. **This changes the results of `pcf`.**
 
 ## [0.1.0] - 2026-11-08
 
@@ -186,6 +198,7 @@ change**; the items under "Changes that affect results" say which.
 
 First release on PyPI.
 
-[Unreleased]: https://github.com/jnobyrne/edgeofpy/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jnobyrne/edgeofpy/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jnobyrne/edgeofpy/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jnobyrne/edgeofpy/releases/tag/v0.1.0
 [0.0.1]: https://pypi.org/project/edgeofpy/0.0.1/

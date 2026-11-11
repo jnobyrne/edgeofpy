@@ -17,8 +17,8 @@ authors:
   - given-names: Jordan
     family-names: O'Byrne
     orcid: "https://orcid.org/0000-0002-4924-4220"
-version: 0.1.0
-date-released: "2026-11-08"
+version: 0.2.0
+date-released: "2026-11-11"
 license: Apache-2.0
 repository-code: "https://github.com/jnobyrne/edgeofpy"
 keywords:
