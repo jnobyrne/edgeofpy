@@ -2,7 +2,7 @@
 
 import numpy as np
 
-def binarized_events(data, threshold=3, thresh_type='both', null_value=0):
+def binarized_events(data, threshold=2, thresh_type='both', null_value=0):
     """Convert time series to binary where 1's are the locations of peaks 
     above or below threshold.
     
@@ -25,6 +25,11 @@ def binarized_events(data, threshold=3, thresh_type='both', null_value=0):
     -------
     events : 2d array of same shape as data, dtype=int
         Time series of zeros with ones at the event peaks.
+
+    Notes
+    -----
+    .. versionchanged:: 0.2.0
+       The default `threshold` is 2 standard deviations (previously 3).
     """
     # z-normalizing is RAM-hungry; instead, compute thresholds per channel
     mean_per_chan = np.mean(data, axis=1, keepdims=True)

@@ -26,6 +26,9 @@ change behaviour).
   known dynamics; fitting Ising models and locating them on the specific
   heat curve and the SK phase diagram; and the synchrony measures (PCF, PLI,
   PLE, GLS) across the Kuramoto transition.
+- A user guide in the documentation: choosing a measure, avalanche analysis
+  (time bin, fitting ranges, DCC, shape collapse), and comparing conditions
+  and subjects.
 - `fit_shape_collapse`: the shape collapse exponent gamma, with the third
   exponent fitted over the same durations, `dcc_collapse`, the stability of
   gamma across `min_dur` and bootstrap confidence intervals;
@@ -33,6 +36,10 @@ change behaviour).
 
 ### Changed
 
+- `detect_avalanches` and `binarized_events` detect events beyond 2
+  standard deviations by default (previously 3). **This changes the results
+  of analyses that relied on the default threshold**; pass `threshold=3` for
+  the previous values.
 - `lambda_max` corrects the dispersion of the covariances for the sampling
   variance due to the finite number of trials (`bias_correction=True`).
   Without it, the estimate was biased upward, e.g. 0.57 instead of 0.3 on a

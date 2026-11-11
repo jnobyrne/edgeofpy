@@ -24,6 +24,7 @@ of several "edges" at which the brain is thought to operate:
 
    install
    quickstart
+   guide/index
    auto_examples/index
    api
    citing

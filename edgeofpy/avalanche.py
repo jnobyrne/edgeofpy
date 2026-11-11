@@ -12,7 +12,7 @@ import powerlaw
 from edgeofpy.utils import (binarized_events, time_bin_events,
                             lattice_search, _sec_to_samples)
 
-def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=3,
+def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
                       thresh_type='both'):
     """Detect avalanches in coarse-grained electrophysiological
     recordings. Takes either raw or binarized data.
@@ -75,6 +75,9 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=3,
     discarded, i.e. the first avalanche if it begins less than `max_iei`
     after the recording start, and the last avalanche if it ends less than
     `max_iei` before the recording end.
+
+    .. versionchanged:: 0.2.0
+       The default `threshold` is 2 standard deviations (previously 3).
 
     References
     ----------
