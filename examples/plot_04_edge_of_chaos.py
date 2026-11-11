@@ -134,3 +134,9 @@ for i, lam in enumerate(truths):
 # In all cases, the estimates increase with the true value, so lambda max is
 # well suited to comparing conditions or subjects recorded in the same way,
 # less so to reading off an absolute distance to the edge.
+# 
+# References
+# ----------
+# - Dahmen et al. (2019) PNAS 116(26), 13051-60.
+# - Schreiber T (1993) Phys Rev E 47, 2401-2404.
+# - Toker et al. (2022) PNAS 119(7), e2024455119.

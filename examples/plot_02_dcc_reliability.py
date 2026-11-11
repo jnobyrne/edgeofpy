@@ -209,3 +209,7 @@ for name, r in (('A', matched_a), ('B', matched_b)):
 #   (``n_avalanches``).
 # - Report the fitting ranges and the version of the powerlaw package
 #   (``powerlaw_version``), as both affect the results.
+#
+# References
+# ----------
+# - Clauset et al. (2009) SIAM review 51(4), 661-703.
