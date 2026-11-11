@@ -12,9 +12,7 @@ measures of where a system lies relative to this transition:
 - the phase lag index (:func:`edgeofpy.pli`) and the phase lag entropy
   (:func:`edgeofpy.ple`);
 - the global lability of synchronization
-  (:func:`edgeofpy.global_lability`) and the durations of phase-locking
-  episodes (:func:`edgeofpy.phase_lock_interval`);
-- phase-locking avalanches (:func:`edgeofpy.detect_phase_avls`).
+  (:func:`edgeofpy.global_lability`).
 
 This example computes them on the Kuramoto model
 (:func:`edgeofpy.models.kuramoto`), in which oscillators with natural
