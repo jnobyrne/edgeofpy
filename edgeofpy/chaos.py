@@ -133,7 +133,7 @@ def _mean_square_displacement(z, max_lag):
 
     return sum_sq / (N - lags)
 
-def lambda_max(data, s_freq, N, trial_len_sec=10):
+def lambda_max(data, s_freq, N, trial_len_sec=10, bias_correction=True):
     """Estimate lambda_max, whose closeness to 1 marks the distance to the
     edge of chaos. Assumes stationarity of the time series (best used on resting
     state data).
@@ -150,6 +150,12 @@ def lambda_max(data, s_freq, N, trial_len_sec=10):
         Estimated number of units in the population.
     trial_len_sec : float
         Data will be segmented into trials of this length, in seconds.
+    bias_correction : bool
+        If True (default), the expected sampling variance of the covariance
+        estimates, (c_ii c_jj + c_ij**2) / (n_trials - 1), is subtracted from
+        the variance of the cross-covariances before applying the formula.
+        Without it, lambda_max is biased upward, strongly so with few trials
+        or low values of lambda_max.
 
     Returns
     -------
@@ -158,12 +164,29 @@ def lambda_max(data, s_freq, N, trial_len_sec=10):
         chaos.
     norm_var : float
         The dispersion of the cross-covariances, i.e. the standard deviation
-        of the off-diagonal elements of `c` divided by the mean of its
-        diagonal (the autocovariances).
+        of the off-diagonal elements of `c` (corrected for sampling variance
+        if `bias_correction`) divided by the mean of its diagonal (the
+        autocovariances).
     c : 2d array
         Covariance matrix (across trials) of the activity summed within each
         trial, e.g. spike count covariance. This is proportional to the
         integrated time-lagged covariance.
+
+    Notes
+    -----
+    The estimate relies on the theory of Dahmen et al. (2019) for large
+    networks with random connectivity, in which lambda_max is the radius of
+    the bulk of the eigenvalue spectrum of the connectivity. On simulated
+    linear networks of 100 units (`edgeofpy.models.linear_network`), the
+    bias-corrected estimate matches the true value well up to about 0.7, but
+    underestimates values close to 1 (e.g. about 0.9 for a true value of
+    0.98), partly because in a finite network the largest eigenvalue lies
+    beyond the bulk. The estimates preserve the order of the true values, so
+    they are best used to compare conditions rather than as absolute
+    distances to 1.
+
+    .. versionchanged:: 0.2.0
+       Bias correction for the finite number of trials, enabled by default.
 
     References
     ----------
@@ -182,10 +205,17 @@ def lambda_max(data, s_freq, N, trial_len_sec=10):
     x = data[:, :n_trials * trial_len].reshape(n, n_trials, trial_len)
 
     c = _integrated_timelag_cov(x)
+    off_diag = ~np.eye(n, dtype=bool)
     c_mean = np.diag(c).mean()
-    c_sd = c[~np.eye(n, dtype=bool)].std()
+    c_var = c[off_diag].var()
+    if bias_correction:
+        # expected sampling variance of the covariance estimates
+        auto = np.diag(c)
+        sampling_var = (np.outer(auto, auto)[off_diag]
+                        + c[off_diag] ** 2) / (n_trials - 1)
+        c_var = max(c_var - sampling_var.mean(), 0)
 
-    norm_var = c_sd / c_mean
+    norm_var = np.sqrt(c_var) / c_mean
     lambda_max = np.sqrt(1 - np.sqrt(1 / (1 + N * np.square(norm_var))))
     
     return lambda_max, norm_var, c

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import edgeofpy as eop
+from edgeofpy import models
 from edgeofpy.chaos import _mean_square_displacement, takens_reconstruction
 from helpers import henon_x, linear_network, logistic_map
 
@@ -85,6 +86,25 @@ def test_lambda_max_tracks_true_value():
         truths.append(lam)
     assert estimates[0] < estimates[1] < estimates[2]
     assert estimates[1] == pytest.approx(truths[1], abs=0.1)
+
+
+@pytest.mark.parametrize('rho', [0.3, 0.5])
+def test_lambda_max_bias_correction(rho):
+    # without correction, sampling noise of the covariances biased the
+    # estimate upward (0.57 for a true 0.3, with 100 trials)
+    x, _ = models.linear_network(n_units=100, spectral_radius=rho,
+                                 n_steps=100_000, rand_seed=0)
+    raw = eop.lambda_max(x, s_freq=100, N=100, bias_correction=False)[0]
+    corrected = eop.lambda_max(x, s_freq=100, N=100)[0]
+    assert corrected == pytest.approx(rho, abs=0.05)
+    assert raw > corrected + 0.1
+
+
+def test_lambda_max_independent_units_is_zero(rng):
+    # no interactions: the corrected dispersion vanishes (up to noise)
+    lam = eop.lambda_max(rng.standard_normal((20, 50_000)), s_freq=100, N=20,
+                         trial_len_sec=1)[0]
+    assert lam < 0.2
 
 
 def test_lambda_max_does_not_modify_input(rng):

@@ -1221,16 +1221,24 @@ def branching_ratio(events, time_bin_size=None, s_freq=None):
 
     return br
 
-def susceptibility(events):
+def susceptibility(events, n_units=None):
     """Estimate the susceptibility and local time fluctuation of the system.
+
+    The susceptibility is N times the variance over time of the density of
+    active units (the fraction of units active at each time step), where N
+    is the number of units.
 
     Parameters
     ----------
     events : 1d or 2d array
         If 2d: channel x time binary signal where 1 is active and 0 is
-        inactive. If 1d: the density of active units over time (fraction of
-        active channels, between 0 and 1); the system size is then taken as
+        inactive. If 1d: the number of active units at each time step if
+        `n_units` is given, otherwise the density of active units (fraction
+        of active units, between 0 and 1), with the system size taken as
         N = 1.
+    n_units : int or None
+        Number of units, for 1d `events` holding counts of active units
+        (e.g. the summed activity of all channels). Ignored for 2d `events`.
 
     Returns
     -------
@@ -1248,6 +1256,9 @@ def susceptibility(events):
     if events.ndim == 2:
         N = events.shape[0]
         density = np.mean(events, axis=0)
+    elif n_units is not None:
+        N = n_units
+        density = events / n_units
     else:
         N = 1
         density = events

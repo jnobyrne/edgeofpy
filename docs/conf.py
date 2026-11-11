@@ -25,6 +25,7 @@ sphinx_gallery_conf = {
     'examples_dirs': '../examples',
     'gallery_dirs': 'auto_examples',
     'filename_pattern': r'/plot_',
+    'within_subsection_order': 'FileNameSortKey',  # plot_01_..., plot_02_...
     'download_all_examples': False,
     'remove_config_comments': True,
     'reference_url': {'edgeofpy': None},  # link functions to the API pages

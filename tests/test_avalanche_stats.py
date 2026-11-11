@@ -286,6 +286,13 @@ def test_susceptibility_1d_density(rng):
     assert chi == pytest.approx(np.var(density))
 
 
+def test_susceptibility_1d_counts(rng):
+    events = (rng.random((20, 1000)) < 0.1).astype(int)
+    expected = eop.susceptibility(events)
+    np.testing.assert_allclose(eop.susceptibility(events.sum(0), n_units=20),
+                               expected)
+
+
 def test_fano_factor(rng):
     assert eop.fano_factor(rng.poisson(5, 200_000)) == pytest.approx(1,
                                                                      abs=0.02)

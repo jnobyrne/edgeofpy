@@ -19,8 +19,11 @@ change behaviour).
   matched avalanche counts (`n_avalanches`) and bootstrap confidence
   intervals.
 - Worked examples in the documentation (sphinx-gallery): an end-to-end
-  avalanche analysis of a simulated critical network, and estimating the DCC
-  reliably (choice of xmin, number of avalanches, comparing conditions).
+  avalanche analysis of a simulated critical network; estimating the DCC
+  reliably (choice of xmin, number of avalanches, comparing conditions); and
+  how the avalanche measures change when tuning a network through its
+  critical point; and the edge-of-chaos measures (0-1 test, lambda max) on
+  systems with known dynamics.
 - `fit_shape_collapse`: the shape collapse exponent gamma, with the third
   exponent fitted over the same durations, `dcc_collapse`, the stability of
   gamma across `min_dur` and bootstrap confidence intervals;
@@ -28,6 +31,13 @@ change behaviour).
 
 ### Changed
 
+- `lambda_max` corrects the dispersion of the covariances for the sampling
+  variance due to the finite number of trials (`bias_correction=True`).
+  Without it, the estimate was biased upward, e.g. 0.57 instead of 0.3 on a
+  simulated network with 100 trials. **This changes the results of
+  `lambda_max`**; use `bias_correction=False` for the previous values.
+- `susceptibility` accepts counts of active units over time (1d) with the
+  new `n_units` argument, e.g. the summed activity of all channels.
 - `lattice_search` moved to `edgeofpy.utils` (still available as
   `eop.lattice_search`).
 - `fit_powerlaw` reads the standard error of the exponent from
