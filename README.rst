@@ -4,7 +4,21 @@
 EDGE OF PY
 ==========
 
+.. image:: https://img.shields.io/pypi/v/edgeofpy.svg
+   :target: https://pypi.org/project/edgeofpy/
+   :alt: PyPI version
+
+.. image:: https://readthedocs.org/projects/edgeofpy/badge/?version=latest
+   :target: https://edgeofpy.readthedocs.io/en/latest/
+   :alt: Documentation status
+
+.. image:: https://github.com/jnobyrne/edgeofpy/actions/workflows/tests.yml/badge.svg
+   :target: https://github.com/jnobyrne/edgeofpy/actions/workflows/tests.yml
+   :alt: Tests
+
 Package for assessing the distance to criticality in brain dynamics.
+
+**Documentation:** https://edgeofpy.readthedocs.io
 
 Features
 --------
@@ -48,7 +62,8 @@ Install edgeofpy by running:
 
 Documentation
 -------------
-Coming soon.
+The documentation, at https://edgeofpy.readthedocs.io, includes a quick
+start, a user guide, worked examples and the API reference.
 
 Requirements
 ------------
