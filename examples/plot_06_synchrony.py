@@ -40,7 +40,11 @@ K_C = np.sqrt(8 / np.pi) * 2 * np.pi * 1.0
 #
 # The phase-locking measures are based on the pairwise phase relationships
 # of :func:`edgeofpy.complex_phase_relationship`, an array of N x N x T
-# complex values; we therefore compute them on 16 of the oscillators.
+# complex values; we therefore compute them on 16 of the oscillators. As in
+# Kitzbichler et al. (2009), the phase relationships are averaged over 8
+# cycles of the highest frequency of the band (about 12 Hz, i.e. 0.67 s),
+# and the GLS compares the number of phase-locked pairs 1 s apart, longer
+# than the averaging window.
 
 rel_coupling = np.round(np.arange(0.5, 1.51, 0.1), 2)  # K / K_c
 n_runs = 8
@@ -57,10 +61,11 @@ for i, k in enumerate(rel_coupling):
         results['PCF'][i, run] = pcf
         results['PLI'][i, run] = eop.pli(x[:16])
         results['PLE'][i, run] = eop.ple(x[:16], m=3, tau=1)
-        c_ij = eop.complex_phase_relationship(x[:16, :10 * S_FREQ])
+        c_ij = eop.complex_phase_relationship(x[:16, :10 * S_FREQ],
+                                              s_freq=S_FREQ, win_dur=8 / 12)
         locked = eop.phase_locking(c_ij)
         results['GLS'][i, run] = eop.global_lability(
-            locked, S_FREQ, delta_t_sec=0.1).mean()
+            locked, S_FREQ, delta_t_sec=1.0).mean()
     for run in range(4):
         x_large, _ = eop.models.kuramoto(n_osc=2048, coupling=k * K_C,
                                          duration=20, s_freq=S_FREQ,
@@ -110,8 +115,12 @@ for key in ('PCF', 'PCF, 2048 oscillators', 'GLS'):
 # transition.
 #
 # The global lability of synchronization measures how much the number of
-# phase-locked pairs changes over time (here over 0.1 s). It peaks just
-# above K_c, where groups of oscillators repeatedly lock and unlock.
+# phase-locked pairs changes over time (here over 1 s). It has a broad
+# maximum below K_c, where pairs of oscillators repeatedly lock and unlock,
+# and falls to almost 0 above about 1.2 K_c, where locked pairs stay
+# locked. Like the PCF in this small network, it tells the synchronized
+# side of the transition from the rest more reliably than it locates the
+# transition.
 #
 #
 # References

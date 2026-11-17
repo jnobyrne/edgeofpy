@@ -2,6 +2,8 @@
 Edge-of-synchrony measures
 """
 
+import warnings
+
 import numpy as np
 import scipy.signal
 
@@ -207,83 +209,97 @@ def complex_phase_relationship(data, s_freq=None, win_dur=None):
     """Compute all pairwise complex-valued phase relationships for a set of
     oscillators, time-resolved.
 
+    For signals i and j with analytic signals W_i and W_j (Hilbert
+    transform), the phase relationship is
+
+        C_ij(t) = <conj(W_i) W_j> / sqrt(<|W_i|^2> <|W_j|^2>),
+
+    where <> is a moving average over `win_dur` (Kitzbichler et al., 2009,
+    Eq. 2). Its argument is the local mean phase difference
+    phi_j - phi_i, and its squared modulus, between 0 and 1, measures the
+    consistency of that difference within the window. Without averaging
+    (``win_dur=None``), C_ij(t) is the instantaneous phase difference as a
+    unit complex number, i.e. Eq. 1 of Kitzbichler et al.
+
     Parameters
     ----------
     data : 2d array
-        The filtered input data, where the first dimension is the different
-        oscillators, and the second dimension is time.
-    s_freq : int or None
-        Sampling frequency, only required if using local time-averaging.
+        Band-pass filtered signals, oscillators x time.
+    s_freq : float or None
+        Sampling frequency. Required if `win_dur` is given.
     win_dur : float or None
-        If not None, a local time average will be applied to the signal, with
-        a window of length win_dur, in seconds.
+        Duration, in seconds, of the moving average. Kitzbichler et al.
+        average over 8 cycles of the highest frequency of the band, e.g.
+        about 0.67 s for 8-12 Hz. If None (default), no averaging is
+        applied, and the modulus of every entry is 1.
 
     Returns
     -------
     c_ij_t : 3d array, dtype=complex128
-        N x N x T array of complex-valued pairwise phase relationships, where N
-        is the number of oscillators and T is time. Will return NaN for entries
-        where at least one of the signals in the pair has modulus zero at time
-        t.
+        N x N x T array of complex-valued pairwise phase relationships, where
+        N is the number of oscillators and T is time. ``np.angle(c_ij_t[i, j])``
+        is the phase of j minus the phase of i, in (-pi, pi]. NaN where at
+        least one of the signals in the pair has modulus zero.
 
     Notes
     -----
-    Time averaging (using win_dur) introduces spurious phase locking when there
-    is a large pos-to-neg or neg-to-pos jump in the relative phase. This can
-    often occur when the relative phase crosses between 0 and 2π.
+    The moving average is centred on each time point; Kitzbichler et al.
+    average over [t, t + win_dur], which only shifts the result in time.
+    Within half a window of the edges, the average is taken over fewer
+    samples.
+
+    Because complex values are averaged, a phase difference that fluctuates
+    around +-pi is not mistaken for phase locking.
 
     The output holds N * N * T complex values (16 bytes each), e.g. about
     6.5 GB for 64 channels and 100,000 samples.
+
+    .. versionchanged:: 0.2.1
+       The conjugate is now taken on signal i, as in Kitzbichler et al., so
+       that the phase difference is phi_j - phi_i. It was phi_i - phi_j,
+       i.e. ``c_ij_t`` was the complex conjugate of the current output.
 
     References
     ----------
     - Kitzbichler et al. (2009) PLoS Comp Biol 5(3), e1000314.
     - Shriki et al. (2013) J Neurosci 33(16), 7079–90.
     """
-    # TODO: something is wrong with the phases: they are all coming out 0 or 2pi
     if win_dur is not None and s_freq is None:
         raise ValueError('Time averaging requires that s_freq be specified.')
 
-    N, T = data.shape
     analytic = scipy.signal.hilbert(data, axis=1)
-    c_ij_t = np.zeros((N, N, T), dtype=complex)
-
-    for t in range(T):
-        i = analytic[:, t]
-        j = analytic[:, t].conj().T
-        c_ij_t[:, :, t] = np.outer(i, j)
-
-        if win_dur is None:
-            norm = np.outer(np.abs(i), np.abs(j))
-            c_ij_t[:, :, t] = c_ij_t[:, :, t] / norm
+    # conj(W_i) W_j for all pairs: N x N x T
+    c_ij_t = np.conj(analytic)[:, np.newaxis, :] * analytic[np.newaxis, :, :]
+    power = np.abs(analytic) ** 2
 
     if win_dur is not None:
-        mod_sq = np.square(np.abs(analytic))
-        flat = np.ones(int(win_dur * s_freq))
-        H = flat / flat.sum()
-        c_ij_t = scipy.signal.fftconvolve(c_ij_t, H[np.newaxis, np.newaxis, :],
-                                          mode='same', axes=-1)
-        mod_sq_smooth = scipy.signal.fftconvolve(mod_sq, H[np.newaxis, :],
-                                                 mode='same', axes=-1)
-        norm = np.zeros((N, N, T))
+        n_win = _sec_to_samples(win_dur, s_freq, name='win_dur')
+        kernel = np.ones(n_win) / n_win
+        c_ij_t = scipy.signal.fftconvolve(
+            c_ij_t, kernel[np.newaxis, np.newaxis, :], mode='same', axes=-1)
+        power = scipy.signal.fftconvolve(power, kernel[np.newaxis, :],
+                                         mode='same', axes=-1)
 
-        for t in range(T):
-            i = mod_sq_smooth[:, t]
-            j = mod_sq_smooth[:, t].conj().T
-            norm[:, :, t] = np.sqrt(np.outer(i, j))
-
-        c_ij_t = c_ij_t / norm
+    with np.errstate(divide='ignore', invalid='ignore'):
+        c_ij_t = c_ij_t / np.sqrt(power[:, np.newaxis, :]
+                                  * power[np.newaxis, :, :])
 
     return c_ij_t
 
+
 def phase_locking(c_ij_t, phase_thresh=np.pi/4, mod_sq_thresh=0.5):
     """Find time points where signals i and j are phase-locked.
+
+    Signals i and j are phase-locked when their phase difference is within
+    +-`phase_thresh` and the squared modulus of their phase relationship
+    exceeds `mod_sq_thresh` (Kitzbichler et al., 2009).
 
     Parameters
     ----------
     c_ij_t : 3d array, dtype=complex128
         N x N x T array of complex-valued pairwise phase relationships, where N
-        is the number of oscillators and T is time.
+        is the number of oscillators and T is time, from
+        `complex_phase_relationship`.
     phase_thresh : float, optional
         Maximum absolute phase difference, in radians, for i and j to be
         considered in phase. The default is pi/4.
@@ -296,16 +312,27 @@ def phase_locking(c_ij_t, phase_thresh=np.pi/4, mod_sq_thresh=0.5):
     phase_locked : 3d array, dtype='bool'
         Locations where i and j are phase-locked at time t.
 
+    Warns
+    -----
+    UserWarning
+        If all moduli are 1, as when `c_ij_t` was computed without time
+        averaging: the significance criterion then has no effect.
+
     References
     ----------
     Kitzbichler et al. (2009) PLoS Comp Biol 5(3), e1000314.
     """
     phase_diff = np.angle(c_ij_t)
     in_phase = np.logical_and(-phase_thresh < phase_diff,
-                           phase_diff < phase_thresh)
-    # The significance threshold only varies away from 1 if a moving average
-    # was taken in computing c_ij_t
-    significance = np.square(np.abs(c_ij_t)) > mod_sq_thresh
+                              phase_diff < phase_thresh)
+    mod_sq = np.square(np.abs(c_ij_t))
+    if np.nanmax(np.abs(mod_sq - 1), initial=0) < 1e-9:
+        warnings.warn('All phase relationships have modulus 1, so the '
+                      'significance criterion (mod_sq_thresh) has no effect. '
+                      'This is the case without time averaging: use win_dur '
+                      'in complex_phase_relationship, as in Kitzbichler et '
+                      'al. (2009).', stacklevel=2)
+    significance = mod_sq > mod_sq_thresh
     phase_locked = np.logical_and(in_phase, significance)
 
     return phase_locked
@@ -360,10 +387,15 @@ def global_lability(phase_locked, s_freq, delta_t_sec, norm=True):
     delta_t_sec : float
         Time delay parameter, in seconds. GLS will be calculated as the
         difference in the number of pairs of coupled oscillators between t and
-        t + delta_t_sec, for every t.
+        t + delta_t_sec, for every t. Kitzbichler et al. (2009) choose it
+        longer than the averaging window (`win_dur` in
+        `complex_phase_relationship`), so that the two counts come from
+        different windows.
     norm : bool
-        If True, the GLS will be normalized with respect to the maximum
-        possible number of synchronized pairs.
+        If True, the difference in the number of phase-locked pairs is
+        divided by the number of pairs, N (N - 1) / 2, before squaring. If
+        False, the GLS is |n(t + delta_t) - n(t)|^2, with n(t) the number of
+        phase-locked pairs at time t, as in Kitzbichler et al. (2009, Eq. 5).
 
     Returns
     -------

@@ -7,6 +7,31 @@ change behaviour).
 
 ## [Unreleased]
 
+### Changes that affect results
+
+- `complex_phase_relationship` takes the complex conjugate of signal i, as
+  in Kitzbichler et al. (2009), so that its argument is the phase
+  difference phi_j - phi_i. It was phi_i - phi_j: the output is the complex
+  conjugate of the previous one. `phase_locking`, `phase_lock_interval`
+  and `global_lability` are unaffected.
+
+### Changed
+
+- `phase_locking` warns when all phase relationships have modulus 1, as
+  without time averaging (`win_dur=None`), since its significance
+  criterion then has no effect.
+- `complex_phase_relationship` is vectorized, rounds `win_dur` to the
+  nearest number of samples (it was truncated) and documents the averaging
+  window recommended by Kitzbichler et al. (2009).
+- The synchrony worked example averages the phase relationships over 8
+  cycles, as in Kitzbichler et al. (2009), and computes the GLS over 1 s.
+
+### Fixed
+
+- `complex_phase_relationship`: removed a note claiming that time
+  averaging creates spurious phase locking when the phase difference wraps
+  around 0 or 2 pi; averaging complex values is not affected by wrapping.
+
 ## [0.2.0] - 2026-11-11
 
 This release adds simulations of systems with known critical points,

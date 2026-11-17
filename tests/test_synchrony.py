@@ -100,13 +100,14 @@ def test_ple_signal_too_short():
 # ------------------------------------------------- complex_phase_relationship
 
 def test_complex_phase_relationship_recovers_lag():
+    # channel 1 lags channel 0 by 0.5 rad: phi_1 - phi_0 = -0.5
     c = eop.complex_phase_relationship(lagged_sines([0, 0.5])[:, :1000])
     assert c.shape == (2, 2, 1000)
     assert c.dtype == np.complex128
     middle = slice(100, 900) # avoid Hilbert edge effects
     np.testing.assert_allclose(np.abs(c[:, :, middle]), 1)
-    np.testing.assert_allclose(np.angle(c[0, 1, middle]), 0.5, atol=1e-3)
-    np.testing.assert_allclose(np.angle(c[1, 0, middle]), -0.5, atol=1e-3)
+    np.testing.assert_allclose(np.angle(c[0, 1, middle]), -0.5, atol=1e-3)
+    np.testing.assert_allclose(np.angle(c[1, 0, middle]), 0.5, atol=1e-3)
 
 
 def test_complex_phase_relationship_smoothing():
@@ -114,7 +115,39 @@ def test_complex_phase_relationship_smoothing():
                                        s_freq=FS, win_dur=0.1)
     middle = slice(100, 900)
     np.testing.assert_allclose(np.abs(c[0, 1, middle]), 1, atol=1e-3)
-    np.testing.assert_allclose(np.angle(c[0, 1, middle]), 0.5, atol=1e-3)
+    np.testing.assert_allclose(np.angle(c[0, 1, middle]), -0.5, atol=1e-3)
+
+
+def test_complex_phase_relationship_matches_kitzbichler_eq2(narrowband_noise):
+    # Eq. 2 of Kitzbichler et al. (2009), computed directly, with the
+    # window [t, t + n) instead of centred on t
+    x = narrowband_noise[:2]
+    n = 50
+    w = scipy.signal.hilbert(x, axis=1)
+    k = np.ones(n) / n
+    num = np.convolve(np.conj(w[0]) * w[1], k, mode='valid')
+    den = np.sqrt(np.convolve(np.abs(w[0]) ** 2, k, mode='valid')
+                  * np.convolve(np.abs(w[1]) ** 2, k, mode='valid'))
+    expected = num / den
+    c = eop.complex_phase_relationship(x, s_freq=FS, win_dur=n / FS)
+    centred = c[0, 1, n // 2: n // 2 + expected.size]
+    np.testing.assert_allclose(centred[n:-n], expected[n:-n], atol=1e-10)
+
+
+def test_complex_phase_relationship_independent_signals_low_modulus(
+        narrowband_noise):
+    c = eop.complex_phase_relationship(narrowband_noise, s_freq=FS,
+                                       win_dur=2)
+    off_diagonal = ~np.eye(6, dtype=bool)
+    assert np.median(np.abs(c[off_diagonal]) ** 2) < 0.2
+
+
+def test_complex_phase_relationship_zero_signal_is_nan():
+    x = lagged_sines([0, 0.5])[:, :1000]
+    x[1] = 0
+    c = eop.complex_phase_relationship(x)
+    assert np.isnan(c[0, 1]).all()
+    assert not np.isnan(c[0, 0, 100:900]).any()
 
 
 def test_complex_phase_relationship_smoothing_requires_s_freq():
@@ -124,11 +157,30 @@ def test_complex_phase_relationship_smoothing_requires_s_freq():
 
 # -------------------------------------------------------------- phase_locking
 
+# perfect sinusoids keep a modulus of 1 even with averaging
+@pytest.mark.filterwarnings('ignore:All phase relationships')
 def test_phase_locking_threshold():
-    c = eop.complex_phase_relationship(lagged_sines([0, 0.5])[:, :1000])
+    c = eop.complex_phase_relationship(lagged_sines([0, 0.5])[:, :1000],
+                                       s_freq=FS, win_dur=0.1)
     middle = slice(100, 900)
     assert eop.phase_locking(c, phase_thresh=np.pi / 4)[0, 1, middle].all()
     assert not eop.phase_locking(c, phase_thresh=0.3)[0, 1, middle].any()
+
+
+def test_phase_locking_antiphase_wrapping_is_not_locked():
+    # regression: the docstring claimed that averaging creates spurious
+    # locking when the phase difference wraps around +-pi
+    jitter = 0.3 * np.sin(2 * np.pi * 0.5 * T)
+    x = np.vstack([np.sin(2 * np.pi * FREQ * T),
+                   np.sin(2 * np.pi * FREQ * T + np.pi + jitter)])
+    c = eop.complex_phase_relationship(x, s_freq=FS, win_dur=0.5)
+    assert not eop.phase_locking(c)[0, 1].any()
+
+
+def test_phase_locking_warns_without_averaging():
+    c = eop.complex_phase_relationship(lagged_sines([0, 0.5])[:, :1000])
+    with pytest.warns(UserWarning, match='modulus 1'):
+        eop.phase_locking(c)
 
 
 # -------------------------------------------------------- phase_lock_interval
