@@ -7,6 +7,14 @@ change behaviour).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-17
+
+This release fixes the remaining known issues: the phase convention of
+`complex_phase_relationship` (now as in Kitzbichler et al., 2009),
+avalanche patterns on single-channel data, and the documentation of the
+default radius of `schreiber_denoise`. **Some results change**; the items
+under "Changes that affect results" say which.
+
 ### Changes that affect results
 
 - `complex_phase_relationship` takes the complex conjugate of signal i, as
@@ -14,7 +22,6 @@ change behaviour).
   difference phi_j - phi_i. It was phi_i - phi_j: the output is the complex
   conjugate of the previous one. `phase_locking`, `phase_lock_interval`
   and `global_lability` are unaffected.
-
 - `detect_avalanches` (and `detect_phase_avls`) on single-channel data:
   each avalanche has `pattern` `[1]` and `n_chan` 1, instead of the string
   'N/A', so that the avalanche properties are always numbers.
@@ -235,7 +242,8 @@ change**; the items under "Changes that affect results" say which.
 
 First release on PyPI.
 
-[Unreleased]: https://github.com/jnobyrne/edgeofpy/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jnobyrne/edgeofpy/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jnobyrne/edgeofpy/releases/tag/v0.2.1
 [0.2.0]: https://github.com/jnobyrne/edgeofpy/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jnobyrne/edgeofpy/releases/tag/v0.1.0
 [0.0.1]: https://pypi.org/project/edgeofpy/0.0.1/
