@@ -532,6 +532,8 @@ def detect_phase_avls(data, s_freq, phase_range, time=None, max_iei=0.024,
             Number of channels containing events.
         profile : 1d array
             Number of events (active channels) in each successive time bin.
+        pattern : 1d array of int
+            1 for each channel containing events, 0 otherwise.
     events_one_chan : 1d array
         Collapsed time series of phase-locking events.
     """

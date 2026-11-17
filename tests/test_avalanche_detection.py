@@ -131,4 +131,5 @@ def test_single_channel():
     events[0, [20, 21, 22, 60]] = 1
     avls = eop.detect_avalanches(events, S_FREQ, max_iei=MAX_IEI)[0]
     assert [a['size'] for a in avls] == [3, 1]
-    assert avls[0]['pattern'] == 'N/A'
+    np.testing.assert_array_equal(avls[0]['pattern'], [1])
+    assert avls[0]['n_chan'] == 1

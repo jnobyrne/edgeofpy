@@ -15,8 +15,20 @@ change behaviour).
   conjugate of the previous one. `phase_locking`, `phase_lock_interval`
   and `global_lability` are unaffected.
 
+- `detect_avalanches` (and `detect_phase_avls`) on single-channel data:
+  each avalanche has `pattern` `[1]` and `n_chan` 1, instead of the string
+  'N/A', so that the avalanche properties are always numbers.
+
 ### Changed
 
+- `avl_repertoire` raises a clear error for avalanches without valid
+  patterns (e.g. 'N/A' from earlier versions), for patterns of different
+  lengths and for an empty list. It works on single-channel data
+  (repertoire `[[1]]`).
+- `schreiber_denoise` documents that its default radius, the standard
+  deviation of the signal, is that of Toker et al. (2020), suited to the
+  0-1 test, but over-smooths when the noise is weak; a radius of about
+  twice the noise level is better for recovering the signal itself.
 - `phase_locking` warns when all phase relationships have modulus 1, as
   without time averaging (`win_dur=None`), since its significance
   criterion then has no effect.

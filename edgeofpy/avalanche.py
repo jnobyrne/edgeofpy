@@ -61,6 +61,13 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
             Number of channels containing events.
         profile : 1d array
             Number of events (active channels) in each successive time bin.
+        pattern : 1d array of int
+            1 for each channel containing events, 0 otherwise (see
+            `avl_repertoire`).
+
+        .. versionchanged:: 0.2.1
+           With single-channel input, `pattern` is ``[1]`` and `n_chan` is 1;
+           both were the string 'N/A'.
     events_all_chan : 2d array of same shape as data, dtype=int
         Time series of zeros with ones at the event peaks.
     events_one_chan : 1d array
@@ -1093,13 +1100,26 @@ def avl_repertoire(avalanches):
         The repertoire of unique avalanche patterns, where axis=0 is the
         individual patterns and axis=1 is the spatial nodes (channels). The
         matrix is binary, with 1 indicating that the node was involved in the
-        avalanche, and 0 indicating that it was not.
+        avalanche, and 0 indicating that it was not. With single-channel
+        data, it is ``[[1]]``.
 
     References
     ----------
     Sorrentino et al. (2021) Sci Rep 11(1), 1-12.
     """
-    repertoire = np.vstack([x['pattern'] for x in avalanches])
+    if len(avalanches) == 0:
+        raise ValueError('No avalanches.')
+    patterns = [np.asarray(x['pattern']) for x in avalanches]
+    if not all(np.issubdtype(x.dtype, np.number) and x.ndim == 1
+               for x in patterns):
+        raise ValueError("Avalanche patterns must be 1d arrays of 0 and 1. "
+                         "Avalanches detected on single-channel data with "
+                         "edgeofpy < 0.2.1 have the pattern 'N/A': detect "
+                         "them again.")
+    if len({x.size for x in patterns}) > 1:
+        raise ValueError('All avalanche patterns must have the same number '
+                         'of channels.')
+    repertoire = np.vstack(patterns)
 
     return np.unique(repertoire, axis=0)
 
@@ -1350,7 +1370,9 @@ def _det_avls(events, s_freq, time, max_iei):
             pattern = np.sign(np.sum(events[:, avl_start:avl_end], axis=1))
             n_chan = int(np.sum(pattern))
         else:
-            pattern = n_chan = 'N/A'
+            # a single channel, necessarily involved in every avalanche
+            pattern = np.ones(1, dtype=int)
+            n_chan = 1
         profile = time_bin_events(profile_raw, max_iei_len)
         avl = {'start_time': start_time,
                'end_time': end_time,

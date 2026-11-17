@@ -259,8 +259,9 @@ def schreiber_denoise(x, r=None, chunk_size=256):
     x : 1d array
         The time series.
     r : float or None
-        Neighbourhood radius. If None, the standard deviation of `x` is used.
-        Schreiber (1993) suggests a radius of a few times the noise amplitude.
+        Neighbourhood radius. If None, the standard deviation of `x` is used,
+        as in the chaos decision tree of Toker et al. (2020), which calls the
+        Matlab implementation with its default radius. See Notes.
     chunk_size : int
         Number of delay vectors processed at once. Lower values reduce memory
         use (about 8 * chunk_size * len(x) bytes) without changing the result.
@@ -272,11 +273,24 @@ def schreiber_denoise(x, r=None, chunk_size=256):
 
     Notes
     -----
-    This code was adapted from Matlab code by Alexandros Leontitsis.
+    The default radius suits the 0-1 test for chaos (`chaos_pipeline`),
+    for which Toker et al. (2020) validated it with measurement noise of up
+    to 40% of the standard deviation of the signal. It is, however, large
+    for recovering the signal itself when the noise is weak: on the Henon
+    and logistic maps, it increases the error when the noise is below about
+    15% of the standard deviation of the signal (e.g. 3 times the error of
+    the noisy signal at 5%). A radius of about twice the standard deviation
+    of the noise (Schreiber, 1993) reduced the error by about a third at all
+    noise levels tested (5-40%).
+
+    This code was adapted from Matlab code by Alexandros Leontitsis. Unlike
+    that code, it keeps the first and last samples instead of setting them
+    to zero.
 
     References
     ----------
-    Schreiber T (1993) Phys Rev E 47, 2401-2404.
+    - Schreiber T (1993) Phys Rev E 47, 2401-2404.
+    - Toker et al. (2020) Commun Biol 3, 11.
     """
     x = np.asarray(x, dtype=float).ravel()
     if r is None:

@@ -158,11 +158,13 @@ def test_schreiber_denoise_reduces_noise(noisy_henon):
     assert rms(out, clean) < 0.8 * rms(noisy, clean)
 
 
-@pytest.mark.xfail(strict=True, reason='known issue: the default radius '
-                   'r = std(x) over-smooths and increases the error')
-def test_schreiber_denoise_default_radius_reduces_noise(noisy_henon):
-    clean, noisy = noisy_henon
-    assert rms(eop.schreiber_denoise(noisy), clean) < rms(noisy, clean)
+def test_schreiber_denoise_default_radius_is_std(noisy_henon):
+    # the default of Toker et al. (2020); documented to over-smooth when
+    # the noise is weak, as here (about 7% of the standard deviation)
+    _, noisy = noisy_henon
+    np.testing.assert_array_equal(eop.schreiber_denoise(noisy[:500]),
+                                  eop.schreiber_denoise(noisy[:500],
+                                                        r=np.std(noisy[:500])))
 
 
 def test_schreiber_denoise_chunk_size_invariant(noisy_henon):

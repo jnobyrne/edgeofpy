@@ -308,12 +308,26 @@ def test_avl_repertoire():
                                   [[0, 1, 1], [1, 0, 1]])
 
 
-@pytest.mark.xfail(strict=True, reason='known issue: single-channel '
-                   "avalanches have pattern 'N/A'; should raise clearly")
-def test_avl_repertoire_single_channel_raises():
+def test_avl_repertoire_single_channel():
+    # regression: single-channel avalanches had the pattern 'N/A'
+    events = np.zeros((1, 100), dtype=int)
+    events[0, [20, 21, 22, 60]] = 1
+    avls = eop.detect_avalanches(events, 1000, max_iei=0.004)[0]
+    np.testing.assert_array_equal(eop.avl_repertoire(avls), [[1]])
+
+
+def test_avl_repertoire_old_single_channel_patterns_raise():
     avls = [{'pattern': 'N/A'}, {'pattern': 'N/A'}]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='detect them again'):
         eop.avl_repertoire(avls)
+
+
+def test_avl_repertoire_invalid_input():
+    with pytest.raises(ValueError, match='No avalanches'):
+        eop.avl_repertoire([])
+    with pytest.raises(ValueError, match='same number of channels'):
+        eop.avl_repertoire([{'pattern': np.array([1, 0])},
+                            {'pattern': np.array([1, 0, 1])}])
 
 
 def test_avl_pattern_dissimilarity():
