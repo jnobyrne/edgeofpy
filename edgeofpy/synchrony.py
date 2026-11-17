@@ -206,20 +206,22 @@ def _binary_pattern_entropy(x, m, tau):
     return -np.sum(p * np.log(p)) / (m * np.log(2))
 
 def complex_phase_relationship(data, s_freq=None, win_dur=None):
-    """Compute all pairwise complex-valued phase relationships for a set of
+    r"""Compute all pairwise complex-valued phase relationships for a set of
     oscillators, time-resolved.
 
-    For signals i and j with analytic signals W_i and W_j (Hilbert
-    transform), the phase relationship is
+    For signals i and j with analytic signals :math:`W_i` and :math:`W_j`
+    (Hilbert transform), the phase relationship is
 
-        C_ij(t) = <conj(W_i) W_j> / sqrt(<|W_i|^2> <|W_j|^2>),
+    .. math:: C_{ij}(t) = \frac{\langle W_i^* W_j \rangle}
+              {\sqrt{\langle |W_i|^2 \rangle \langle |W_j|^2 \rangle}},
 
-    where <> is a moving average over `win_dur` (Kitzbichler et al., 2009,
-    Eq. 2). Its argument is the local mean phase difference
-    phi_j - phi_i, and its squared modulus, between 0 and 1, measures the
-    consistency of that difference within the window. Without averaging
-    (``win_dur=None``), C_ij(t) is the instantaneous phase difference as a
-    unit complex number, i.e. Eq. 1 of Kitzbichler et al.
+    where :math:`\langle \cdot \rangle` is a moving average over `win_dur`
+    (Kitzbichler et al., 2009, Eq. 2). Its argument is the local mean phase
+    difference :math:`\phi_j - \phi_i`, and its squared modulus, between 0
+    and 1, measures the consistency of that difference within the window.
+    Without averaging (``win_dur=None``), :math:`C_{ij}(t)` is the
+    instantaneous phase difference as a unit complex number, i.e. Eq. 1 of
+    Kitzbichler et al.
 
     Parameters
     ----------
@@ -373,7 +375,7 @@ def phase_lock_interval(phase_locked):
     return all_durations
 
 def global_lability(phase_locked, s_freq, delta_t_sec, norm=True):
-    """Compute the global lability of synchronization (GLS), a time-resolved
+    r"""Compute the global lability of synchronization (GLS), a time-resolved
     measure of the change in the extent of global synchronization in the
     system.
 
@@ -394,8 +396,9 @@ def global_lability(phase_locked, s_freq, delta_t_sec, norm=True):
     norm : bool
         If True, the difference in the number of phase-locked pairs is
         divided by the number of pairs, N (N - 1) / 2, before squaring. If
-        False, the GLS is |n(t + delta_t) - n(t)|^2, with n(t) the number of
-        phase-locked pairs at time t, as in Kitzbichler et al. (2009, Eq. 5).
+        False, the GLS is :math:`|n(t + \Delta t) - n(t)|^2`, with
+        :math:`n(t)` the number of phase-locked pairs at time t, as in
+        Kitzbichler et al. (2009, Eq. 5).
 
     Returns
     -------
