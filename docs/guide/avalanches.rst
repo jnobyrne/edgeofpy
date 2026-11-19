@@ -18,6 +18,15 @@ and detects events as the peaks of excursions beyond ``threshold`` standard
 deviations (2 by default), above, below or both (``thresh_type``). It also
 accepts events already binarized, e.g. spikes.
 
+For spikes, :func:`edgeofpy.bin_spikes` turns spike times into counts per
+bin, pooled over units or per unit; pass the counts with
+``s_freq=1 / bin_dur`` and ``max_iei=bin_dur``. In large populations
+(hundreds of neurons or more), bins without any spike are rare, so runs of
+non-empty bins merge into very long avalanches or, at fine bins, reflect
+chance coincidences between neurons. Use ``pop_threshold`` to define
+avalanches as excursions of the population count above a threshold, e.g.
+its median (``pop_threshold='median'``).
+
 Events are then grouped into avalanches: an interval without events longer
 than ``max_iei`` ends an avalanche. ``max_iei`` acts as the **time bin** of
 the analysis, and avalanche durations are expressed in these bins

@@ -133,3 +133,46 @@ def test_single_channel():
     assert [a['size'] for a in avls] == [3, 1]
     np.testing.assert_array_equal(avls[0]['pattern'], [1])
     assert avls[0]['n_chan'] == 1
+
+
+# ------------------------------------------------------------- pop_threshold
+
+def test_pop_threshold_counts():
+    # counts per sample; with threshold 2, only samples 3-4 and 8 exceed it
+    counts = np.array([0, 2, 2, 4, 3, 2, 2, 2, 5, 2, 2, 0])
+    avls, _, one, _ = eop.detect_avalanches(counts, 1000, max_iei=0.001,
+                                            pop_threshold=2)
+    np.testing.assert_array_equal(one, [0, 0, 0, 2, 1, 0, 0, 0, 3, 0, 0, 0])
+    assert [a['size'] for a in avls] == [3, 3]
+    assert [a['dur_bin'] for a in avls] == [2, 1]
+
+
+def test_pop_threshold_none_merges_busy_series():
+    counts = np.array([0, 2, 2, 4, 3, 2, 2, 2, 5, 2, 2, 0])
+    avls = eop.detect_avalanches(counts, 1000, max_iei=0.001)[0]
+    assert len(avls) == 1 and avls[0]['size'] == counts.sum()
+
+
+def test_pop_threshold_median():
+    counts = np.array([1, 2, 2, 3, 2, 6, 2, 1, 2, 0])  # median 2
+    a = eop.detect_avalanches(counts, 1000, max_iei=0.001,
+                              pop_threshold='median')
+    b = eop.detect_avalanches(counts, 1000, max_iei=0.001, pop_threshold=2)
+    assert [x['size'] for x in a[0]] == [x['size'] for x in b[0]] == [1, 4]
+
+
+def test_pop_threshold_multichannel_pattern(layout):
+    # sample 11 has 2 events, sample 100 has 2: threshold 1 keeps 1 each
+    avls = eop.detect_avalanches(layout, S_FREQ, max_iei=MAX_IEI,
+                                 pop_threshold=1)[0]
+    assert [a['size'] for a in avls] == [1, 1]
+    # the first avalanche is sample 11 only, where channels 1 and 2 fire
+    assert avls[0]['n_chan'] == 2
+    np.testing.assert_array_equal(avls[0]['pattern'], [0, 1, 1])
+
+
+@pytest.mark.parametrize('bad', [-1, 1.5, 'mean'])
+def test_pop_threshold_errors(bad):
+    with pytest.raises(ValueError):
+        eop.detect_avalanches(np.array([0, 1, 2, 0]), 1000, max_iei=0.001,
+                              pop_threshold=bad)

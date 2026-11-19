@@ -86,13 +86,15 @@ Pairwise maximum-entropy (Ising) models and phase diagrams.
 Utilities
 ---------
 
-Event detection, time binning and a one-parameter grid search.
+Event detection, time binning, spike binning and a one-parameter grid
+search.
 
 .. autosummary::
    :toctree: generated/
 
    binarized_events
    time_bin_events
+   bin_spikes
    lattice_search
 
 Model systems

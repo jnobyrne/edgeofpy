@@ -7,6 +7,20 @@ change behaviour).
 
 ## [Unreleased]
 
+### Added
+
+- `bin_spikes`: counts spikes in time bins, pooled or per unit, with the
+  option of the mean inter-spike interval as the bin.
+- `detect_avalanches`: a `pop_threshold` argument, so that only the events
+  above a threshold on the summed count form avalanches. This is needed
+  for large spiking populations, where bins without any spike are rare.
+
+### Documentation
+
+- `dcc_collapse`: a note that gamma and the third exponent, fitted on the
+  same avalanches, agree for any process whose profiles keep their shape,
+  so that `dcc_collapse_2` is the test against independent exponents.
+
 ## [0.2.1] - 2026-11-17
 
 This release fixes the remaining known issues: the phase convention of

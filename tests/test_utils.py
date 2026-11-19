@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 
+import edgeofpy as eop
+
 from edgeofpy.utils import (_detect_start_end, _sec_to_samples,
                             binarized_events, time_bin_events)
 
@@ -112,3 +114,51 @@ def test_binarized_events_null_value(excursions):
     events = binarized_events(excursions, threshold=3, null_value=-1)
     assert set(np.unique(events)) == {-1, 1}
     assert np.sum(events == 1) == 2
+
+
+# ---------------------------------------------------------------- bin_spikes
+
+def test_bin_spikes_pooled():
+    counts, dt = eop.bin_spikes(np.array([0.0, 0.05, 0.12, 0.13, 0.3]), 0.1)
+    assert dt == 0.1
+    np.testing.assert_array_equal(counts, [2, 2, 1])
+    assert counts.sum() == 5
+
+
+def test_bin_spikes_per_unit_ragged():
+    units = [np.array([0.0, 0.25]), np.array([0.1, 0.11, 0.12])]
+    counts, dt = eop.bin_spikes(units, 0.1)
+    assert counts.shape == (2, 3)
+    np.testing.assert_array_equal(counts.sum(axis=0),
+                                  eop.bin_spikes(np.concatenate(units),
+                                                 0.1)[0])
+
+
+def test_bin_spikes_list_of_floats_is_pooled():
+    counts, _ = eop.bin_spikes([0.0, 0.1, 0.2], 0.1)
+    assert counts.ndim == 1
+
+
+def test_bin_spikes_mean_isi():
+    st = np.array([0.0, 0.002, 0.003, 0.009])
+    _, dt = eop.bin_spikes(st, 'mean_isi')
+    assert dt == pytest.approx(0.003)
+
+
+def test_bin_spikes_window():
+    counts, _ = eop.bin_spikes(np.array([0.0, 0.5, 1.0, 1.5]), 0.5,
+                               t_start=0.5, t_stop=1.5)
+    np.testing.assert_array_equal(counts, [1, 2])
+
+
+@pytest.mark.parametrize('kwargs', [dict(bin_dur=0), dict(bin_dur='x'),
+                                    dict(bin_dur=0.1, t_start=1, t_stop=0)])
+def test_bin_spikes_errors(kwargs):
+    with pytest.raises(ValueError):
+        eop.bin_spikes(np.array([0.0, 0.5]), **kwargs)
+
+
+def test_bin_spikes_refuses_huge_per_unit_array():
+    units = [np.array([0.0, 1000.0])] * 1000
+    with pytest.raises(ValueError, match='too large'):
+        eop.bin_spikes(units, 1e-6)

@@ -51,6 +51,7 @@ from edgeofpy.ising import (fit_pmem,
 from edgeofpy import models # noqa: F401  (submodule: eop.models.<name>)
 from edgeofpy.utils import (binarized_events,
                             time_bin_events,
+                            bin_spikes,
                             lattice_search,
                             )
 
@@ -78,5 +79,5 @@ __all__ = [
     'fit_pmem', 'fit_beta', 'sk_diagram', 'metropolis', 'plot_sk',
     'ht_diagram', 'ising_energy', 'heat_capacity', 'energy_landscape_2d',
     # utils
-    'binarized_events', 'time_bin_events', 'lattice_search',
+    'binarized_events', 'time_bin_events', 'bin_spikes', 'lattice_search',
 ]

@@ -85,6 +85,82 @@ def time_bin_events(events, bin_len):
 
     return binned
 
+_MAX_BIN_CELLS = 5e8  # units x bins above which bin_spikes refuses (4 GB)
+
+def bin_spikes(spike_times, bin_dur, t_start=None, t_stop=None):
+    """Count spikes in consecutive time bins.
+
+    Parameters
+    ----------
+    spike_times : 1d array or sequence of 1d arrays
+        Spike times, in seconds. A single array is taken as the pooled
+        spikes of a population; a sequence of arrays (one per unit) gives
+        one row of counts per unit.
+    bin_dur : float or 'mean_isi'
+        Bin duration, in seconds. If 'mean_isi', the mean interval between
+        consecutive spikes of all units pooled, the usual choice of bin for
+        avalanche analysis (Beggs and Plenz, 2003).
+    t_start, t_stop : float, optional
+        Start and end of the binned period, in seconds. By default, the
+        first and last spike. Spikes outside the period are ignored.
+
+    Returns
+    -------
+    counts : ndarray of int
+        Number of spikes per bin: 1d (bins) for a single array, 2d
+        (units x bins) for a sequence of arrays. Use the 1d form for large
+        populations at fine bins: the 2d form takes units x bins memory,
+        and arrays of more than 5e8 elements are refused.
+    bin_dur : float
+        Bin duration used, in seconds. The sampling frequency to pass to
+        `detect_avalanches` is ``1 / bin_dur``.
+
+    Notes
+    -----
+    .. versionadded:: 0.3.0
+
+    References
+    ----------
+    Beggs JM, Plenz D (2003) J Neurosci 23(35), 11167-77.
+    """
+    if isinstance(spike_times, np.ndarray) and spike_times.dtype != object:
+        pooled_only = spike_times.ndim == 1
+        units = [spike_times] if pooled_only else list(spike_times)
+    else:
+        seq = list(spike_times)
+        pooled_only = all(np.ndim(x) == 0 for x in seq)
+        units = [np.array(seq)] if pooled_only else seq
+    units = [np.asarray(u, float).ravel() for u in units]
+    pooled = np.sort(np.concatenate(units)) if units else np.array([])
+    if pooled.size < 2:
+        raise ValueError('At least two spikes are needed.')
+    t_start = pooled[0] if t_start is None else float(t_start)
+    t_stop = pooled[-1] if t_stop is None else float(t_stop)
+    if t_stop <= t_start:
+        raise ValueError('t_stop must be later than t_start.')
+    if isinstance(bin_dur, str):
+        if bin_dur != 'mean_isi':
+            raise ValueError("bin_dur must be a number or 'mean_isi'.")
+        inside = pooled[(pooled >= t_start) & (pooled <= t_stop)]
+        if inside.size < 2:
+            raise ValueError('At least two spikes are needed between '
+                             't_start and t_stop.')
+        bin_dur = float(np.mean(np.diff(inside)))
+        if bin_dur == 0:
+            raise ValueError('All spikes are simultaneous; the mean '
+                             'inter-spike interval is 0.')
+    elif bin_dur <= 0:
+        raise ValueError('bin_dur must be positive.')
+    n_bins = max(1, int(np.ceil((t_stop - t_start) / bin_dur)))
+    if not pooled_only and len(units) * n_bins > _MAX_BIN_CELLS:
+        raise ValueError(f'{len(units)} units x {n_bins} bins is too large '
+                         'an array; pass the pooled spike times (one array) '
+                         'or use a longer bin.')
+    edges = t_start + np.arange(n_bins + 1) * bin_dur
+    counts = np.array([np.histogram(u, edges)[0] for u in units],
+                      dtype=np.int64)
+    return (counts[0] if pooled_only else counts), float(bin_dur)
+
 def _sec_to_samples(duration, s_freq, name='duration'):
     """Convert a duration in seconds to a whole number of samples (>= 1).
 

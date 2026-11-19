@@ -13,7 +13,7 @@ from edgeofpy.utils import (binarized_events, time_bin_events,
                             lattice_search, _sec_to_samples)
 
 def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
-                      thresh_type='both'):
+                      thresh_type='both', pop_threshold=None):
     """Detect avalanches in coarse-grained electrophysiological
     recordings. Takes either raw or binarized data.
 
@@ -40,6 +40,17 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
         If 'below', an event is detected when signal is less than -thresh.
         If 'both', the signal above thresh and below -thresh is detected as an
         event.
+    pop_threshold : int or 'median', optional
+        Threshold on the number of events per sample, summed over channels.
+        If None (default), an avalanche is a run of samples with at least one
+        event, separated from the next by more than `max_iei`. If given,
+        only the events above the threshold count: each sample keeps
+        ``max(count - pop_threshold, 0)`` events. Use it for large
+        populations, e.g. spikes of hundreds of neurons, where samples
+        without any event are too rare to separate avalanches. 'median'
+        uses the median count per sample, rounded down to an integer.
+
+        .. versionadded:: 0.3.0
 
     Returns
     -------
@@ -51,7 +62,8 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
         end_time : float
             End time in seconds since recording start.
         size : int
-            Number of events (over all channels).
+            Number of events (over all channels); with `pop_threshold`,
+            the number of events above the threshold.
         dur_sec : float
             Duration, in seconds, from first to last event in the
             avalanche.
@@ -71,7 +83,7 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
     events_all_chan : 2d array of same shape as data, dtype=int
         Time series of zeros with ones at the event peaks.
     events_one_chan : 1d array
-        Collapsed event time series.
+        Collapsed event time series (after `pop_threshold`, if given).
     mean_iei : float
         Mean inter-event interval, in seconds. NaN if fewer than two events
         were found.
@@ -102,7 +114,8 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
                                 thresh_type=thresh_type, null_value=0)
 
     avalanches, events_one_chan = _det_avls(data, s_freq=s_freq, time=time,
-                                            max_iei=max_iei)
+                                            max_iei=max_iei,
+                                            pop_threshold=pop_threshold)
     idx_events = np.flatnonzero(events_one_chan)
     mean_iei = (np.mean(np.diff(idx_events)) / s_freq if len(idx_events) > 1
                 else np.nan)
@@ -825,6 +838,19 @@ def dcc_collapse(gamma, third):
     dcc_collapse : float
         The deviation from criticality coefficient for shape collapse.
 
+    Notes
+    -----
+    Gamma and the third exponent both describe how the mean avalanche size
+    grows with duration: if the mean profiles collapse with gamma, the mean
+    size of avalanches of duration T grows as T**(1 + gamma), and the third
+    exponent is the slope of that same relation. Fitted on the same
+    avalanches, they agree for any process whose mean profiles keep their
+    shape across durations, critical or not (e.g. flat profiles give gamma
+    and third - 1 both near 0). A small `dcc_collapse` therefore shows that
+    the two fits are consistent, not that the system is critical. For a test
+    against independent exponents, use `dcc_collapse_2`, which compares
+    gamma with the size and duration distributions.
+
     References
     ----------
     Friedman et al. (2012) PRL 108, 208102.
@@ -1320,7 +1346,7 @@ def fano_factor(data):
     F = np.var(data) / np.mean(data)
     return F
 
-def _det_avls(events, s_freq, time, max_iei):
+def _det_avls(events, s_freq, time, max_iei, pop_threshold=None):
     """Utility function for detecting avalanches from event time series."""
     # Maximum inter-event interval, in samples
     max_iei_len = _sec_to_samples(max_iei, s_freq, name='max_iei')
@@ -1332,6 +1358,19 @@ def _det_avls(events, s_freq, time, max_iei):
         events_one_chan = np.sum(events, axis=0)
     else:
         events_one_chan = events.squeeze()
+
+    # Keep only the events above a threshold on the summed count
+    if pop_threshold is not None:
+        if isinstance(pop_threshold, str):
+            if pop_threshold != 'median':
+                raise ValueError("pop_threshold must be an integer, "
+                                 "'median' or None.")
+            pop_threshold = int(np.floor(np.median(events_one_chan)))
+        elif pop_threshold != int(pop_threshold) or pop_threshold < 0:
+            raise ValueError('pop_threshold must be a non-negative '
+                             'integer.')
+        events_one_chan = np.maximum(events_one_chan - int(pop_threshold),
+                                     0)
 
     # Obtain inter-event intervals
     idx_events = np.flatnonzero(events_one_chan)
