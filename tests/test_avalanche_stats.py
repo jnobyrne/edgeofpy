@@ -128,13 +128,12 @@ def test_dcc_mean_field_is_zero():
 
 
 def test_dcc_collapse():
-    assert eop.dcc_collapse(1.0, 2.0) == pytest.approx(0)
-    assert eop.dcc_collapse(0.5, 2.0) == pytest.approx(0.5)
+    assert eop.dcc_collapse(1.5, 2.0, 1.0) == pytest.approx(0)
+    assert eop.dcc_collapse(1.5, 2.0, 0.5) == pytest.approx(0.5)
 
 
-def test_dcc_collapse_2():
-    assert eop.dcc_collapse_2(1.5, 2.0, 1.0) == pytest.approx(0)
-    assert eop.dcc_collapse_2(1.5, 2.0, 0.5) == pytest.approx(0.5)
+def test_dcc_collapse_2_removed():
+    assert not hasattr(eop, 'dcc_collapse_2')
 
 
 # ------------------------------------------------------- shape_collapse_error
@@ -385,7 +384,7 @@ def test_end_to_end_critical_branching_process(branching_avalanches):
     gamma, _ = eop.lattice_search(collapse_error, [avls, (0., 2.)], 1, 0.5,
                                   n_levels=2)
     assert 0.7 < gamma < 1.1
-    assert eop.dcc_collapse(gamma, third) < 0.2
+    assert eop.dcc_collapse(tau, alpha, gamma) < 0.3
 
 
 @pytest.mark.slow

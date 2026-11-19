@@ -820,47 +820,11 @@ def _collapse_error(T_set, profiles, gamma):
     squared_span = np.square(np.ptp(rescaled_profiles))
     return np.mean(variance) / squared_span
 
-def dcc_collapse(gamma, third):
-    """The deviation from criticality coefficient for the scaling relation
-    between the shape collapse exponent and the so-called "third" avalanche
-    exponent.
-
-    Parameters
-    ----------
-    gamma : float
-        The empirical power law exponent for the shape collapse.
-    third : float
-        The empirical power law exponent of the relation between avalanche
-        size and duration.
-
-    Returns
-    -------
-    dcc_collapse : float
-        The deviation from criticality coefficient for shape collapse.
-
-    Notes
-    -----
-    Gamma and the third exponent both describe how the mean avalanche size
-    grows with duration: if the mean profiles collapse with gamma, the mean
-    size of avalanches of duration T grows as T**(1 + gamma), and the third
-    exponent is the slope of that same relation. Fitted on the same
-    avalanches, they agree for any process whose mean profiles keep their
-    shape across durations, critical or not (e.g. flat profiles give gamma
-    and third - 1 both near 0). A small `dcc_collapse` therefore shows that
-    the two fits are consistent, not that the system is critical. For a test
-    against independent exponents, use `dcc_collapse_2`, which compares
-    gamma with the size and duration distributions.
-
-    References
-    ----------
-    Friedman et al. (2012) PRL 108, 208102.
-    """
-    return np.abs( (third - 1) - gamma )
-
-def dcc_collapse_2(tau, alpha, gamma):
-    """The deviation from criticality coefficient for the scaling relation
-    between the avalanche size and duration exponents and the shape collapse
-    exponent, (alpha - 1) / (tau - 1) = gamma + 1.
+def dcc_collapse(tau, alpha, gamma):
+    """The deviation from criticality coefficient for the shape collapse:
+    the deviation from the scaling relation between the avalanche size and
+    duration exponents and the shape collapse exponent,
+    (alpha - 1) / (tau - 1) = gamma + 1.
 
     Parameters
     ----------
@@ -877,6 +841,23 @@ def dcc_collapse_2(tau, alpha, gamma):
     float
         The deviation from criticality coefficient.
 
+    Notes
+    -----
+    Gamma is compared with the size and duration distributions, not with
+    the third exponent (the slope of mean size against duration). Gamma and
+    the third exponent both describe how the mean avalanche size grows with
+    duration: if the mean profiles collapse with gamma, the mean size of
+    avalanches of duration T grows as T**(1 + gamma). Fitted on the same
+    avalanches, they agree for any process whose mean profiles keep their
+    shape across durations, critical or not, so their deviation is not a
+    test of criticality (`fit_shape_collapse` still returns the third
+    exponent, as a check of the collapse).
+
+    .. versionchanged:: 0.3.0
+       Formerly ``dcc_collapse_2``. The previous
+       ``dcc_collapse(gamma, third)``, ``|third - 1 - gamma|``, was
+       removed.
+
     References
     ----------
     Friedman et al. (2012) PRL 108, 208102.
@@ -886,18 +867,22 @@ def dcc_collapse_2(tau, alpha, gamma):
 def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
                        n_levels=2, min_dur=3, min_avl=10, interp_n=1000,
                        min_dur_check=(3, 5, 8, 12), n_boot=0, ci=0.95,
-                       rand_seed=0):
-    """Fit the shape collapse exponent gamma, and compare it with the third
-    exponent fitted over the same durations.
+                       rand_seed=0, tau=None, alpha=None):
+    """Fit the shape collapse exponent gamma and, given the size and
+    duration exponents, its deviation from criticality.
 
     At criticality, the mean temporal profiles of avalanches of different
     durations T collapse onto a single curve when time is rescaled by T and
-    the profiles by T**gamma, with gamma = third - 1. Gamma is found by
-    minimizing `shape_collapse_error` with `lattice_search`. The third
-    exponent is fitted (with `fit_third_exponent`) over exactly the
-    durations used for the collapse: with finite data, both exponents depend
-    on the range of durations, and fitting them over different ranges biases
-    their comparison.
+    the profiles by T**gamma, with gamma + 1 = (alpha - 1) / (tau - 1).
+    Gamma is found by minimizing `shape_collapse_error` with
+    `lattice_search`. If `tau` and `alpha` are given (e.g. from
+    `estimate_dcc`), the deviation from that relation is returned as
+    `dcc_collapse`.
+
+    The third exponent is also fitted (with `fit_third_exponent`) over the
+    durations used for the collapse, as a check: if the profiles collapse,
+    third = gamma + 1 whether or not the system is critical, so a large
+    difference means that the profiles change shape with duration.
 
     Parameters
     ----------
@@ -928,6 +913,11 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
         Coverage of the confidence intervals, e.g. 0.95.
     rand_seed : int or numpy.random.Generator or None
         Seed or random number generator for bootstrapping.
+    tau, alpha : float, optional
+        Exponents of the size and duration distributions. If both are
+        given, `dcc_collapse` is computed.
+
+        .. versionadded:: 0.3.0
 
     Returns
     -------
@@ -939,9 +929,14 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
         collapse_error : float
             `shape_collapse_error` at `gamma`.
         third : float
-            Third exponent, over the durations used for the collapse.
-        dcc_collapse : float
-            ``|third - 1 - gamma|`` (see `dcc_collapse`).
+            Third exponent, over the durations used for the collapse (a
+            check of the collapse; see above).
+        dcc_collapse : float or None
+            ``|(alpha - 1) / (tau - 1) - (gamma + 1)|`` (see
+            `dcc_collapse`); None unless `tau` and `alpha` are given.
+
+            .. versionchanged:: 0.3.0
+               Previously ``|third - 1 - gamma|``.
         durations : 1d array
             Durations used for the collapse.
         n_avalanches_used : int
@@ -950,9 +945,13 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
             Gamma for each value of `min_dur_check` (NaN where too few
             durations qualify).
         gamma_ci, dcc_collapse_ci : tuple or None
-            Bootstrap confidence intervals (None if `n_boot` is 0).
+            Bootstrap confidence intervals (None if `n_boot` is 0;
+            `dcc_collapse_ci` also None unless `tau` and `alpha` are given).
+            `dcc_collapse_ci` reflects the uncertainty of gamma only, with
+            `tau` and `alpha` held fixed.
         boot : dict or None
-            Bootstrap values of 'gamma', 'third' and 'dcc_collapse'.
+            Bootstrap values of 'gamma' and 'third' (and 'dcc_collapse' if
+            `tau` and `alpha` are given).
         x : 1d array
             Rescaled time t/T of the profiles.
         profiles : dict
@@ -975,6 +974,9 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
     """
     if not 0 < ci < 1:
         raise ValueError('ci must be between 0 and 1.')
+    if (tau is None) != (alpha is None):
+        raise ValueError('Give both tau and alpha, or neither.')
+    with_dcc = tau is not None
     rng = np.random.default_rng(rand_seed)
     avalanches = list(avalanches)
 
@@ -988,8 +990,10 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
         third = fit_third_exponent([a['size'] for a in in_set],
                                    [a['dur_bin'] for a in in_set])
         return {'gamma': gamma, 'collapse_error': error, 'third': third,
-                'dcc_collapse': dcc_collapse(gamma, third), 'T_set': T_set,
-                'n_used': len(in_set), 'x': x, 'profiles': profiles}
+                'dcc_collapse': (dcc_collapse(tau, alpha, gamma) if with_dcc
+                                 else None),
+                'T_set': T_set, 'n_used': len(in_set), 'x': x,
+                'profiles': profiles}
 
     res = fit(avalanches, gamma_range, min_dur)
 
@@ -1004,7 +1008,7 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
     if n_boot:
         g_range = (max(gamma_range[0], res['gamma'] - 0.5),
                    min(gamma_range[1], res['gamma'] + 0.5))
-        keys = ('gamma', 'third', 'dcc_collapse')
+        keys = ('gamma', 'third') + (('dcc_collapse',) if with_dcc else ())
         boot = {k: np.full(n_boot, np.nan) for k in keys}
         for b in range(n_boot):
             idx = rng.integers(len(avalanches), size=len(avalanches))
@@ -1016,7 +1020,8 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
                 boot[k][b] = rep[k]
         q = 100 * np.array([(1 - ci) / 2, (1 + ci) / 2])
         gamma_ci = tuple(np.nanpercentile(boot['gamma'], q))
-        dcc_ci = tuple(np.nanpercentile(boot['dcc_collapse'], q))
+        if with_dcc:
+            dcc_ci = tuple(np.nanpercentile(boot['dcc_collapse'], q))
 
     scaled = _rescale_profiles(res['T_set'], res['profiles'], res['gamma'])
     raw = {T: np.mean([a['profile'] for a in avalanches if a['dur_bin'] == T],

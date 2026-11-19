@@ -113,11 +113,21 @@ Shape collapse
 
 At a critical point, the average profile of avalanches of duration T,
 rescaled by T to the power gamma, is the same for all durations, with
-gamma = third - 1 (Friedman et al., 2012). :func:`edgeofpy.fit_shape_collapse`
-finds the gamma that best collapses the profiles, fits the third exponent
-over the same durations and returns their deviation (``dcc_collapse``),
-with optional bootstrap confidence intervals.
-:func:`edgeofpy.plot_shape_collapse` plots the profiles, rescaled or not.
+gamma + 1 = (alpha - 1) / (tau - 1) (Friedman et al., 2012).
+:func:`edgeofpy.fit_shape_collapse` finds the gamma that best collapses the
+profiles, with optional bootstrap confidence intervals. Given the size and
+duration exponents (``tau`` and ``alpha``, e.g. from
+:func:`edgeofpy.estimate_dcc`), it also returns the deviation from this
+relation (``dcc_collapse``). :func:`edgeofpy.plot_shape_collapse` plots the
+profiles, rescaled or not.
+
+A good collapse is not by itself a sign of criticality. Look at the shape
+of the profiles: at criticality they rise and fall (an inverted parabola
+in mean-field models), whereas flat profiles, as produced by bursts of
+roughly constant activity, collapse with gamma near 0. The third exponent,
+fitted over the same durations, equals gamma + 1 for any process whose
+profiles keep their shape, critical or not; ``fit_shape_collapse`` returns
+it as a check of the collapse, not as a test of criticality.
 
 Gamma depends on the shortest duration included (``min_dur``), as short
 avalanches deviate from the asymptotic shape. ``gamma_by_min_dur`` shows

@@ -7,6 +7,18 @@ change behaviour).
 
 ## [Unreleased]
 
+### Changes that affect results
+
+- `dcc_collapse` now compares gamma with the size and duration exponents,
+  `|(alpha - 1) / (tau - 1) - (gamma + 1)|` (formerly `dcc_collapse_2`,
+  which is removed). The previous `dcc_collapse(gamma, third)` compared
+  gamma with the third exponent; fitted on the same avalanches, these
+  agree for any process whose profiles keep their shape, so it was not a
+  test of criticality. Calls with the old two arguments now raise an error.
+- `fit_shape_collapse` returns `dcc_collapse` (and `dcc_collapse_ci`) in
+  the new sense when given `tau` and `alpha`, and None otherwise. It still
+  returns the third exponent over the collapse durations, as a check.
+
 ### Added
 
 - `bin_spikes`: counts spikes in time bins, pooled or per unit, with the
@@ -14,12 +26,11 @@ change behaviour).
 - `detect_avalanches`: a `pop_threshold` argument, so that only the events
   above a threshold on the summed count form avalanches. This is needed
   for large spiking populations, where bins without any spike are rare.
+- `fit_shape_collapse`: `tau` and `alpha` arguments.
 
 ### Documentation
 
-- `dcc_collapse`: a note that gamma and the third exponent, fitted on the
-  same avalanches, agree for any process whose profiles keep their shape,
-  so that `dcc_collapse_2` is the test against independent exponents.
+- Avalanche guide: what a shape collapse does and does not show.
 
 ## [0.2.1] - 2026-11-17
 

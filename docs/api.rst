@@ -23,7 +23,6 @@ Detection of neuronal avalanches, power-law fitting, DCC, shape collapse, branch
    estimate_dcc
    shape_collapse_error
    dcc_collapse
-   dcc_collapse_2
    fit_shape_collapse
    plot_shape_collapse
    avl_repertoire

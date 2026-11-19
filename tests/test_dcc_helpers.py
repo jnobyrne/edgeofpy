@@ -189,7 +189,7 @@ def test_fit_shape_collapse_exact_scaling(gamma):
                                  gamma_range=(-1., 3.), n_levels=3)
     assert res['gamma'] == pytest.approx(gamma, abs=0.01)
     assert res['third'] == pytest.approx(gamma + 1, abs=1e-6)
-    assert res['dcc_collapse'] == pytest.approx(0, abs=0.01)
+    assert res['dcc_collapse'] is None and res['dcc_collapse_ci'] is None
     assert res['collapse_error'] == pytest.approx(0, abs=1e-6)
     # rescaled profiles coincide
     profiles = np.array(list(res['profiles'].values()))
@@ -238,8 +238,30 @@ def test_fit_shape_collapse_bootstrap(critical_avls):
 def test_fit_shape_collapse_critical_branching(critical_avls):
     # gamma and third - 1 agree when fitted over the same durations
     res = eop.fit_shape_collapse(critical_avls)
-    assert res['dcc_collapse'] < 0.05
+    assert abs(res['third'] - 1 - res['gamma']) < 0.05
     assert 0.5 < res['gamma'] < 1.1
+
+
+def test_fit_shape_collapse_dcc_with_tau_alpha():
+    # mean-field exponents: (alpha - 1) / (tau - 1) = 2 = gamma + 1
+    res = eop.fit_shape_collapse(scaled_avalanches(1.0), tau=1.5, alpha=2.0)
+    assert res['dcc_collapse'] == pytest.approx(0, abs=0.01)
+    res = eop.fit_shape_collapse(scaled_avalanches(0.5), tau=1.5, alpha=2.0)
+    assert res['dcc_collapse'] == pytest.approx(0.5, abs=0.01)
+
+
+def test_fit_shape_collapse_dcc_bootstrap(critical_avls):
+    res = eop.fit_shape_collapse(critical_avls, n_boot=5, rand_seed=0,
+                                 tau=1.5, alpha=2.0)
+    low, high = res['dcc_collapse_ci']
+    assert low <= high and res['boot']['dcc_collapse'].shape == (5,)
+    np.testing.assert_allclose(res['boot']['dcc_collapse'],
+                               np.abs(1 - res['boot']['gamma']))
+
+
+def test_fit_shape_collapse_needs_both_tau_and_alpha():
+    with pytest.raises(ValueError):
+        eop.fit_shape_collapse(scaled_avalanches(1.0), tau=1.5)
 
 
 def test_fit_shape_collapse_too_few_durations():

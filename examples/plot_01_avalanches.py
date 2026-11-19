@@ -159,12 +159,14 @@ fig.tight_layout()
 # At criticality, the mean temporal profiles of avalanches of different
 # durations T have the same shape: rescaling time by T and the profiles by
 # T to the power gamma makes them collapse onto one curve, with
-# gamma = third - 1. :func:`edgeofpy.fit_shape_collapse` finds gamma and
-# fits the third exponent over the same durations.
+# gamma + 1 = (alpha - 1) / (tau - 1). :func:`edgeofpy.fit_shape_collapse`
+# finds gamma and, given tau and alpha, the deviation from this relation.
 
-collapse = eop.fit_shape_collapse(avalanches)
-print(f"gamma = {collapse['gamma']:.3f}, third - 1 = "
-      f"{collapse['third'] - 1:.3f}, "
+collapse = eop.fit_shape_collapse(avalanches, tau=res['tau'],
+                                  alpha=res['alpha'])
+print(f"gamma = {collapse['gamma']:.3f}, "
+      f"(alpha - 1) / (tau - 1) - 1 = "
+      f"{(res['alpha'] - 1) / (res['tau'] - 1) - 1:.3f}, "
       f"DCC (collapse) = {collapse['dcc_collapse']:.3f}")
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
