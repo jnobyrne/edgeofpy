@@ -15,6 +15,7 @@ Detection of neuronal avalanches, power-law fitting, DCC, shape collapse, branch
    :toctree: generated/
 
    detect_avalanches
+   plot_gaussian_threshold
    plot_pdf
    plot_cdf
    fit_powerlaw
@@ -85,13 +86,14 @@ Pairwise maximum-entropy (Ising) models and phase diagrams.
 Utilities
 ---------
 
-Event detection, time binning, spike binning and a one-parameter grid
+Event detection and its threshold, time binning, spike binning and a one-parameter grid
 search.
 
 .. autosummary::
    :toctree: generated/
 
    binarized_events
+   gaussian_threshold
    time_bin_events
    bin_spikes
    lattice_search

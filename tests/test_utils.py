@@ -6,7 +6,8 @@ import pytest
 import edgeofpy as eop
 
 from edgeofpy.utils import (_detect_start_end, _sec_to_samples,
-                            binarized_events, time_bin_events)
+                            binarized_events, gaussian_threshold,
+                            time_bin_events)
 
 
 # ---------------------------------------------------------- _detect_start_end
@@ -114,6 +115,106 @@ def test_binarized_events_null_value(excursions):
     events = binarized_events(excursions, threshold=3, null_value=-1)
     assert set(np.unique(events)) == {-1, 1}
     assert np.sum(events == 1) == 2
+
+
+# -------------------------------------------------------- gaussian_threshold
+
+def noise_with_bursts(rng, n_chan=10, n_samp=50000, frac=0.005, sign=None):
+    """Gaussian noise plus sparse large deflections (4-8 noise SD)."""
+    data = rng.standard_normal((n_chan, n_samp))
+    hit = rng.random(data.shape) < frac
+    amp = rng.uniform(4, 8, hit.sum())
+    if sign is None:
+        amp *= rng.choice([-1, 1], hit.sum())
+    data[hit] += sign * amp if sign is not None else amp
+    return data
+
+
+def test_gaussian_threshold_finds_departure(rng):
+    data = noise_with_bursts(rng)
+    thr = gaussian_threshold(data)
+    assert 2 < thr < 4.5
+    assert thr == pytest.approx(round(thr / 0.1) * 0.1)  # multiple of bin
+
+
+def test_gaussian_threshold_white_noise_warns(rng):
+    with pytest.warns(UserWarning, match='does not depart'):
+        thr = gaussian_threshold(rng.standard_normal((10, 50000)))
+    assert np.isnan(thr)
+
+
+def test_gaussian_threshold_pools_list(rng):
+    a, b = noise_with_bursts(rng, 4), noise_with_bursts(rng, 6)
+    # each channel is z-scored, so a list equals one array of all channels
+    assert gaussian_threshold([a, b]) == gaussian_threshold(np.vstack([a, b]))
+    # recordings of different lengths and channel counts
+    c = noise_with_bursts(rng, 3, 20000)
+    thr, det = gaussian_threshold([a, c], return_details=True)
+    assert 2 < thr < 4.5
+    assert det['density'].sum() * 0.1 == pytest.approx(1, abs=1e-6)
+
+
+def test_gaussian_threshold_one_sided(rng):
+    data = noise_with_bursts(rng, sign=1)
+    assert 2 < gaussian_threshold(data, thresh_type='above') < 4.5
+    with pytest.warns(UserWarning, match='does not depart'):
+        assert np.isnan(gaussian_threshold(data, thresh_type='below'))
+
+
+def test_gaussian_threshold_tol_monotonic(rng):
+    data = noise_with_bursts(rng)
+    thr = [gaussian_threshold(data, tol=t) for t in (1.5, 2, 5)]
+    assert thr == sorted(thr)
+
+
+def test_gaussian_threshold_details(rng):
+    thr, det = gaussian_threshold(noise_with_bursts(rng), return_details=True)
+    assert det['threshold'] == thr
+    assert det['gaussian_params'][2] == pytest.approx(1, abs=0.1)  # noise SD
+    i = np.flatnonzero(np.isclose(det['ratio_z'], thr))[0]
+    assert det['ratio'][i] > det['tol']
+    assert len(det['bin_centers']) == len(det['density']) == len(
+        det['gaussian']) == 2 * len(det['ratio_z'])
+
+
+@pytest.mark.filterwarnings('ignore:the amplitude distribution does not')
+def test_gaussian_threshold_warns_on_non_gaussian_core(rng):
+    bimodal = np.concatenate([rng.normal(-2, .5, (5, 25000)),
+                              rng.normal(2, .5, (5, 25000))], axis=1)
+    with pytest.warns(UserWarning, match='Gaussian centre'):
+        gaussian_threshold(bimodal)
+    with pytest.warns(UserWarning, match='centre is not Gaussian'):
+        gaussian_threshold(rng.standard_cauchy((5, 50000)))
+
+
+def test_gaussian_threshold_bad_input(rng):
+    with pytest.raises(ValueError, match='thresh_type'):
+        gaussian_threshold(rng.standard_normal((2, 100)), thresh_type='up')
+    with pytest.raises(ValueError, match='non-zero variance'):
+        gaussian_threshold(np.ones((2, 100)))
+
+
+def test_binarized_events_gaussian_default(rng):
+    data = noise_with_bursts(rng)
+    np.testing.assert_array_equal(
+        binarized_events(data),
+        binarized_events(data, threshold=gaussian_threshold(data)))
+
+
+def test_binarized_events_gaussian_fails_on_noise(rng):
+    with pytest.warns(UserWarning), pytest.raises(ValueError,
+                                                  match='no departure'):
+        binarized_events(rng.standard_normal((5, 20000)))
+    with pytest.raises(ValueError, match="number or 'gaussian'"):
+        binarized_events(rng.standard_normal((5, 200)), threshold='auto')
+
+
+def test_plot_gaussian_threshold(rng):
+    import matplotlib
+    matplotlib.use('Agg')
+    _, det = gaussian_threshold(noise_with_bursts(rng), return_details=True)
+    ax = eop.plot_gaussian_threshold(det)
+    assert len(ax.lines) == 4  # data, Gaussian, two threshold lines
 
 
 # ---------------------------------------------------------------- bin_spikes

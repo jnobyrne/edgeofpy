@@ -12,8 +12,9 @@ import powerlaw
 from edgeofpy.utils import (binarized_events, time_bin_events,
                             lattice_search, _sec_to_samples)
 
-def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
-                      thresh_type='both', pop_threshold=None):
+def detect_avalanches(data, s_freq, time=None, max_iei=.004,
+                      threshold='gaussian', thresh_type='both',
+                      pop_threshold=None):
     """Detect avalanches in coarse-grained electrophysiological
     recordings. Takes either raw or binarized data.
 
@@ -32,9 +33,13 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
     max_iei : float, : .004
         Duration, in seconds, of the maximum inter-event interval within which
         successive events are counted as belonging to the same avalanche.
-    threshold : float
+    threshold : float or 'gaussian'
         Number of standard deviations.  Only signal excursions exceeding
-        this threshold are considered events.
+        this threshold are considered events. 'gaussian' (default) finds
+        the amplitude at which the signal departs from a Gaussian, with
+        `gaussian_threshold` and its default settings. To compare
+        recordings, compute one threshold for all of them with
+        `gaussian_threshold` and pass it here.
     thresh_type : str
         If 'above', an event is detected when signal is greater than thresh.
         If 'below', an event is detected when signal is less than -thresh.
@@ -98,6 +103,9 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
     .. versionchanged:: 0.2.0
        The default `threshold` is 2 standard deviations (previously 3).
 
+    .. versionchanged:: 0.3.0
+       The default `threshold` is 'gaussian' (previously 2).
+
     References
     ----------
     - Benayoun et al. (2010) J Clin Neurophysiol 27(6) 458-64.
@@ -121,6 +129,44 @@ def detect_avalanches(data, s_freq, time=None, max_iei=.004, threshold=2,
                 else np.nan)
 
     return avalanches, data, events_one_chan, mean_iei
+
+def plot_gaussian_threshold(details, ax=None):
+    """Plot the amplitude distribution, the fitted Gaussian and the
+    threshold found by `gaussian_threshold`.
+
+    Parameters
+    ----------
+    details : dict
+        Second output of ``gaussian_threshold(..., return_details=True)``.
+    ax : matplotlib Axes, optional
+        Axes to draw on; a new figure is created if None.
+
+    Returns
+    -------
+    ax : matplotlib Axes
+
+    Notes
+    -----
+    .. versionadded:: 0.3.0
+    """
+    if ax is None:
+        _, ax = plt.subplots()
+    x, p = details['bin_centers'], details['density']
+    ax.semilogy(x[p > 0], p[p > 0], color='k', lw=1.5, label='data')
+    ax.semilogy(x, details['gaussian'], color='tab:red', lw=1,
+                label='fitted Gaussian')
+    ax.set_ylim(max(p[p > 0].min(), details['gaussian'].max() * 1e-12),
+                p.max() * 3)
+    thr = details['threshold']
+    if np.isfinite(thr):
+        lines = {'both': (-thr, thr), 'above': (thr,),
+                 'below': (-thr,)}[details['thresh_type']]
+        for i, t in enumerate(lines):
+            ax.axvline(t, color='tab:blue', ls='--', lw=1,
+                       label=f'threshold ({thr:g} SD)' if i == 0 else None)
+    ax.set(xlabel='amplitude (SD)', ylabel='probability density')
+    ax.legend(frameon=False)
+    return ax
 
 def plot_pdf(data, binning='d_lin', n_bins=100, xlabel=None, ylabel=None,
              ax=None):

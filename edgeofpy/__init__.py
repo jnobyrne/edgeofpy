@@ -4,6 +4,7 @@ dynamics."""
 from importlib.metadata import version, PackageNotFoundError
 
 from edgeofpy.avalanche import (detect_avalanches,
+                                plot_gaussian_threshold,
                                 plot_pdf,
                                 plot_cdf,
                                 fit_powerlaw,
@@ -49,6 +50,7 @@ from edgeofpy.ising import (fit_pmem,
                             )
 from edgeofpy import models # noqa: F401  (submodule: eop.models.<name>)
 from edgeofpy.utils import (binarized_events,
+                            gaussian_threshold,
                             time_bin_events,
                             bin_spikes,
                             lattice_search,
@@ -61,7 +63,7 @@ except PackageNotFoundError: # not installed, e.g. run from a source checkout
 
 __all__ = [
     # avalanche
-    'detect_avalanches', 'plot_pdf', 'plot_cdf', 'fit_powerlaw',
+    'detect_avalanches', 'plot_gaussian_threshold', 'plot_pdf', 'plot_cdf', 'fit_powerlaw',
     'fit_third_exponent', 'dcc', 'estimate_dcc', 'shape_collapse_error',
     'dcc_collapse', 'fit_shape_collapse',
     'plot_shape_collapse', 'avl_repertoire',
@@ -78,5 +80,5 @@ __all__ = [
     'fit_pmem', 'fit_beta', 'sk_diagram', 'metropolis', 'plot_sk',
     'ht_diagram', 'ising_energy', 'heat_capacity', 'energy_landscape_2d',
     # utils
-    'binarized_events', 'time_bin_events', 'bin_spikes', 'lattice_search',
+    'binarized_events', 'gaussian_threshold', 'time_bin_events', 'bin_spikes', 'lattice_search',
 ]

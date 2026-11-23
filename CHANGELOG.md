@@ -9,6 +9,11 @@ change behaviour).
 
 ### Changes that affect results
 
+- `detect_avalanches` and `binarized_events`: the default `threshold` is
+  `'gaussian'` (previously 2 standard deviations): the amplitude at which
+  the signal departs from a Gaussian, found by `gaussian_threshold`. Pass
+  `threshold=2` for the previous behaviour. Signals with no departure from
+  a Gaussian now raise an error unless a numeric threshold is given.
 - `dcc_collapse` now compares gamma with the size and duration exponents,
   `|(alpha - 1) / (tau - 1) - (gamma + 1)|` (formerly `dcc_collapse_2`,
   which is removed). The previous `dcc_collapse(gamma, third)` compared
@@ -21,6 +26,10 @@ change behaviour).
 
 ### Added
 
+- `gaussian_threshold`: the event threshold at which the amplitude
+  distribution departs from a fitted Gaussian (Shriki et al., 2013), for
+  one recording or pooled over several; `plot_gaussian_threshold` shows
+  the fit.
 - `bin_spikes`: counts spikes in time bins, pooled or per unit, with the
   option of the mean inter-spike interval as the bin.
 - `detect_avalanches`: a `pop_threshold` argument, so that only the events

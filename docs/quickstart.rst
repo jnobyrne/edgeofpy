@@ -22,8 +22,8 @@ the deviation from criticality coefficient (DCC):
    import edgeofpy as eop
 
    # data: channels x samples, cleaned signal; s_freq: sampling frequency
-   avls, _, _, _ = eop.detect_avalanches(data, s_freq, max_iei=0.004,
-                                         threshold=2)
+   # threshold: where the amplitudes depart from a Gaussian (the default)
+   avls, _, _, _ = eop.detect_avalanches(data, s_freq, max_iei=0.004)
    sizes = np.array([a['size'] for a in avls])
    durations = np.array([a['dur_bin'] for a in avls])
 

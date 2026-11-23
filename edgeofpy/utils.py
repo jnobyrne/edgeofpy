@@ -1,8 +1,172 @@
 """Utility functions for edgeofpy"""
 
-import numpy as np
+import warnings
 
-def binarized_events(data, threshold=2, thresh_type='both', null_value=0):
+import numpy as np
+from scipy.optimize import curve_fit
+
+
+def _gauss(x, amp, mu, sd):
+    return amp * np.exp(-(x - mu) ** 2 / (2 * sd ** 2))
+
+
+def gaussian_threshold(data, thresh_type='both', tol=2.0, fit_range=6.0,
+                       bin_width=0.1, min_count=20, return_details=False):
+    """Event threshold at which the signal amplitudes depart from a Gaussian.
+
+    Each channel is z-scored and the amplitudes of all channels are pooled.
+    A Gaussian is fitted by least squares to their density between
+    -`fit_range` and `fit_range` standard deviations. The threshold is the
+    smallest amplitude beyond which the density stays more than `tol` times
+    above the Gaussian (Shriki et al., 2013, Fig. 1B).
+
+    Parameters
+    ----------
+    data : 2d array or list of 2d arrays
+        Raw (cleaned) signal, channel x sample. A list of arrays (e.g. the
+        recordings of a dataset, which may differ in length and number of
+        channels) is pooled and gives a single threshold.
+    thresh_type : str
+        'both' (default) compares the absolute amplitudes, as used by
+        `binarized_events` with ``thresh_type='both'``; 'above' and
+        'below' use the positive or negative tail only.
+    tol : float
+        Ratio of the observed density to the Gaussian density that counts
+        as a departure. At the threshold, at most a fraction ``1 / tol`` of
+        the samples is expected from the Gaussian part of the signal.
+    fit_range : float
+        Range of the Gaussian fit, in standard deviations.
+    bin_width : float
+        Width of the amplitude bins, in standard deviations. The threshold
+        is a multiple of `bin_width`.
+    min_count : int
+        Bins with fewer samples (after pooling both tails, for 'both') are
+        ignored, so that sparse extreme values do not decide the result.
+    return_details : bool
+        If True, also return a dictionary for checking the fit (see
+        `plot_gaussian_threshold`).
+
+    Returns
+    -------
+    threshold : float
+        In standard deviations of each channel, as `binarized_events`
+        expects. NaN, with a warning, if the density never departs from the
+        Gaussian.
+    details : dict
+        Only if `return_details` is True, with keys:
+
+        bin_centers, density : 1d arrays
+            Pooled density of the z-scored amplitudes.
+        gaussian : 1d array
+            Fitted Gaussian density at `bin_centers`.
+        gaussian_params : tuple
+            Amplitude, mean and standard deviation of the fitted Gaussian.
+        ratio_z, ratio : 1d arrays
+            Absolute amplitude (lower bin edge; for 'below', minus the
+            amplitude) and ratio of observed to Gaussian density.
+        threshold, thresh_type, tol
+            As above.
+
+    Notes
+    -----
+    The rationale (Shriki et al., 2013) is that the Gaussian part of the
+    amplitude distribution reflects noise-like fluctuations, and the excess
+    in the tails the large, correlated deflections that form avalanches.
+    Shriki et al. found the departure at about 2.7 SD in resting MEG and
+    used 3 SD, as a margin. The departure is usually gradual, so the
+    threshold depends on `tol`; report it with the threshold.
+
+    To compare conditions or groups, compute one threshold from all
+    recordings (pass them as a list) rather than one per recording:
+    otherwise the conditions are analysed with different thresholds.
+
+    The method assumes that the centre of the distribution is Gaussian. A
+    warning is given if the departure starts within 1 SD of the mean, or if
+    the data fall more than `tol` times below the Gaussian anywhere within
+    `fit_range`.
+
+    .. versionadded:: 0.3.0
+
+    References
+    ----------
+    - Shriki et al. (2013) J Neurosci 33(16), 7079-90.
+    """
+    if thresh_type not in ('both', 'above', 'below'):
+        raise ValueError("thresh_type must be 'both', 'above' or 'below'")
+    arrays = list(data) if isinstance(data, (list, tuple)) else [data]
+    n_half = int(round(10 / bin_width))
+    edges = np.arange(-n_half, n_half + 1) * bin_width
+    counts = np.zeros(2 * n_half)
+    n_total = 0
+    for arr in arrays:
+        arr = np.asarray(arr, dtype=float)
+        if arr.ndim == 1:
+            arr = arr[np.newaxis, :]
+        if arr.ndim != 2:
+            raise ValueError('data must be channel x sample arrays')
+        for chan in arr:
+            sd = chan.std()
+            if not np.isfinite(sd) or sd == 0:
+                continue
+            counts += np.histogram((chan - chan.mean()) / sd, edges)[0]
+            n_total += chan.size
+    if n_total == 0:
+        raise ValueError('no channel with non-zero variance')
+
+    centers = 0.5 * (edges[1:] + edges[:-1])
+    density = counts / (n_total * bin_width)
+    fit = np.abs(centers) <= fit_range
+    with np.errstate(over='ignore', divide='ignore', invalid='ignore'):
+        params = curve_fit(_gauss, centers[fit], density[fit],
+                           p0=(density.max(), 0, 1))[0]
+    params[2] = abs(params[2])
+    gaussian = _gauss(centers, *params)
+    expected = gaussian * n_total * bin_width
+
+    pos, neg = slice(n_half, None), slice(n_half - 1, None, -1)
+    if thresh_type == 'both':
+        obs, exp = counts[pos] + counts[neg], expected[pos] + expected[neg]
+    elif thresh_type == 'above':
+        obs, exp = counts[pos], expected[pos]
+    else:
+        obs, exp = counts[neg], expected[neg]
+    ratio_z = edges[n_half:-1]
+    with np.errstate(divide='ignore', invalid='ignore'):
+        ratio = obs / exp
+    ok = obs >= min_count
+    above = ok & (ratio > tol)
+    below = ok & ~above
+
+    if np.any(ok & (ratio < 1 / tol) & (ratio_z < fit_range)):
+        warnings.warn('the fitted Gaussian is more than tol times above the '
+                      'data at some amplitudes: the distribution may not '
+                      'have a Gaussian centre (e.g. it is bimodal); check '
+                      'with plot_gaussian_threshold', stacklevel=2)
+    threshold = np.nan
+    if above.any():
+        start = np.flatnonzero(below)[-1] + 1 if below.any() else 0
+        after = np.flatnonzero(above[start:])
+        if len(after):
+            threshold = float(np.round(ratio_z[start + after[0]], 10))
+    if np.isnan(threshold):
+        warnings.warn('the amplitude distribution does not depart from the '
+                      'fitted Gaussian; no threshold found', stacklevel=2)
+    elif threshold <= 1:
+        warnings.warn(f'the amplitude distribution departs from the fitted '
+                      f'Gaussian at {threshold:g} SD: its centre is not '
+                      f'Gaussian, and the threshold may not be meaningful',
+                      stacklevel=2)
+    if not return_details:
+        return threshold
+    details = dict(bin_centers=centers, density=density, gaussian=gaussian,
+                   gaussian_params=tuple(float(v) for v in params),
+                   ratio_z=ratio_z, ratio=ratio, threshold=threshold,
+                   thresh_type=thresh_type, tol=tol)
+    return threshold, details
+
+
+def binarized_events(data, threshold='gaussian', thresh_type='both',
+                     null_value=0):
     """Convert time series to binary where 1's are the locations of peaks 
     above or below threshold.
     
@@ -10,9 +174,10 @@ def binarized_events(data, threshold=2, thresh_type='both', null_value=0):
     ----------
     data : 2d array (dtype='float')
         Raw (cleaned) signal, channel x sample.
-    threshold : float
+    threshold : float or 'gaussian'
         Number of standard deviations.  Only signal excursions exceeding
-        this threshold are considered events.
+        this threshold are considered events. 'gaussian' (default) uses
+        `gaussian_threshold` on `data`, with the same `thresh_type`.
     thresh_type : str
         If 'above', an event is detected when signal is greater than thresh.
         If 'below', an event is detected when signal is less than -thresh.
@@ -30,7 +195,18 @@ def binarized_events(data, threshold=2, thresh_type='both', null_value=0):
     -----
     .. versionchanged:: 0.2.0
        The default `threshold` is 2 standard deviations (previously 3).
+
+    .. versionchanged:: 0.3.0
+       The default `threshold` is 'gaussian' (previously 2).
     """
+    if isinstance(threshold, str):
+        if threshold != 'gaussian':
+            raise ValueError("threshold must be a number or 'gaussian'")
+        threshold = gaussian_threshold(data, thresh_type=thresh_type)
+        if np.isnan(threshold):
+            raise ValueError("threshold='gaussian' found no departure from "
+                             "a Gaussian; pass a threshold in standard "
+                             "deviations")
     # z-normalizing is RAM-hungry; instead, compute thresholds per channel
     mean_per_chan = np.mean(data, axis=1, keepdims=True)
     std_per_chan = np.std(data, axis=1, keepdims=True)

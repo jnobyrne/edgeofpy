@@ -102,9 +102,10 @@ def test_event_input_is_not_rebinarized(layout, dtype):
 
 
 def test_raw_signal_input(rng):
-    data = rng.standard_normal((8, 5000))
+    data = rng.standard_t(3, size=(8, 20000))  # heavy tails
     avls, events_all, events_one, _ = eop.detect_avalanches(data, 250)
-    expected_events = eop.binarized_events(data, threshold=2)  # default
+    thr = eop.gaussian_threshold(data)  # the default, 'gaussian'
+    expected_events = eop.binarized_events(data, threshold=thr)
     np.testing.assert_array_equal(events_all, expected_events)
     np.testing.assert_array_equal(events_one, expected_events.sum(axis=0))
     assert sum(a['size'] for a in avls) <= expected_events.sum()

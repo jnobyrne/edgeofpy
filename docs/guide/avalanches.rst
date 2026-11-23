@@ -14,9 +14,26 @@ Detecting events and avalanches
 -------------------------------
 
 :func:`edgeofpy.detect_avalanches` takes cleaned signals (channel x sample)
-and detects events as the peaks of excursions beyond ``threshold`` standard
-deviations (2 by default), above, below or both (``thresh_type``). It also
-accepts events already binarized, e.g. spikes.
+and detects events as the peaks of excursions beyond a threshold, in
+standard deviations of each channel, above, below or both
+(``thresh_type``). It also accepts events already binarized, e.g. spikes.
+
+By default (``threshold='gaussian'``), the threshold is the amplitude at
+which the signal departs from a Gaussian distribution
+(:func:`edgeofpy.gaussian_threshold`; Shriki et al., 2013). The amplitudes
+of all channels, each z-scored, are pooled, and a Gaussian is fitted to
+their density; the threshold is the amplitude beyond which the density
+stays more than ``tol`` (2 by default) times above the Gaussian. The idea
+is that the Gaussian part reflects noise-like fluctuations and the excess
+the large, correlated deflections that form avalanches. Shriki et al.
+found the departure at about 2.7 SD in resting MEG.
+:func:`edgeofpy.plot_gaussian_threshold` shows the fit; check it, since
+the method assumes that the centre of the distribution is Gaussian.
+
+``threshold='gaussian'`` computes a threshold for each recording. To
+compare recordings, compute one threshold from all of them (pass them as a
+list to :func:`edgeofpy.gaussian_threshold`) and pass it as a number:
+otherwise each condition is analysed with its own threshold.
 
 For spikes, :func:`edgeofpy.bin_spikes` turns spike times into counts per
 bin, pooled over units or per unit; pass the counts with
@@ -47,8 +64,9 @@ The time bin is the most consequential choice of the analysis:
 
 In practice, compute the results for a range of bin widths, from the
 sampling interval to a few tens of milliseconds, and report how they
-depend on it. The threshold matters too, but usually less; check a few
-values (e.g. 1.5 to 3 standard deviations).
+depend on it. The threshold matters too: a lower threshold admits more
+events and flattens the size distribution. Check a few values, e.g.
+thresholds from ``gaussian_threshold`` with ``tol`` from 1.5 to 5.
 
 Fitting power laws
 ------------------
@@ -161,4 +179,5 @@ References
 - Hengen & Shew (2025) Neuron 113(16), 2582-98.
 - Ma et al. (2019) Neuron 104(4), 655-64.
 - Sethna et al. (2001) Nature 410, 242-50.
+- Shriki et al. (2013) J Neurosci 33(16), 7079-90.
 - Wilting & Priesemann (2018) Nat Commun 9, 2325.
