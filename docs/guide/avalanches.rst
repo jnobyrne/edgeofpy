@@ -151,6 +151,28 @@ Gamma depends on the shortest duration included (``min_dur``), as short
 avalanches deviate from the asymptotic shape. ``gamma_by_min_dur`` shows
 this dependence; report gamma together with ``min_dur``.
 
+Testing against surrogates
+--------------------------
+
+Power laws and scaling can arise without criticality (Touboul & Destexhe,
+2017), and in sensor recordings the correlations between channels include
+volume conduction. :func:`edgeofpy.phase_randomize` makes surrogate data
+with the same power spectra as the data:
+
+- with ``shared=True`` (default), the same random phases are applied to
+  all channels, so the surrogate also keeps the linear correlations between
+  channels (Prichard & Theiler, 1994);
+- with ``shared=False``, the phases are drawn for each channel, so the
+  channels become independent (Shriki et al., 2013).
+
+Detect avalanches in the surrogate with the threshold of the data, passed
+as a number: the surrogate is Gaussian, so ``threshold='gaussian'`` would
+find no departure. A result reproduced by the shared-phase surrogate
+carries no information beyond the spectra and cross-spectra of the data.
+It may still reflect the distance to criticality, but measures based on
+covariances (e.g. :func:`edgeofpy.lambda_max`) capture that information
+directly.
+
 Branching ratio, susceptibility and Fano factor
 -----------------------------------------------
 
@@ -178,6 +200,9 @@ References
 - Friedman et al. (2012) Phys Rev Lett 108(20), 208102.
 - Hengen & Shew (2025) Neuron 113(16), 2582-98.
 - Ma et al. (2019) Neuron 104(4), 655-64.
+- Prichard & Theiler (1994) Phys Rev Lett 73(7), 951-4.
 - Sethna et al. (2001) Nature 410, 242-50.
 - Shriki et al. (2013) J Neurosci 33(16), 7079-90.
+- Theiler et al. (1992) Physica D 58(1-4), 77-94.
+- Touboul & Destexhe (2017) Phys Rev E 95(1), 012413.
 - Wilting & Priesemann (2018) Nat Commun 9, 2325.

@@ -86,7 +86,7 @@ Pairwise maximum-entropy (Ising) models and phase diagrams.
 Utilities
 ---------
 
-Event detection and its threshold, time binning, spike binning and a one-parameter grid
+Event detection and its threshold, surrogate data, time binning, spike binning and a one-parameter grid
 search.
 
 .. autosummary::
@@ -94,6 +94,7 @@ search.
 
    binarized_events
    gaussian_threshold
+   phase_randomize
    time_bin_events
    bin_spikes
    lattice_search

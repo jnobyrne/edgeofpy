@@ -26,6 +26,9 @@ change behaviour).
 
 ### Added
 
+- `phase_randomize`: phase-randomized surrogates of multichannel data,
+  with phases shared across channels (keeps the cross-spectra) or drawn
+  per channel (keeps only the spectra); epochs are randomized separately.
 - `gaussian_threshold`: the event threshold at which the amplitude
   distribution departs from a fitted Gaussian (Shriki et al., 2013), for
   one recording or pooled over several; `plot_gaussian_threshold` shows

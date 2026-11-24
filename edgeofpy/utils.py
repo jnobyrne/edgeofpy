@@ -165,6 +165,74 @@ def gaussian_threshold(data, thresh_type='both', tol=2.0, fit_range=6.0,
     return threshold, details
 
 
+def phase_randomize(data, shared=True, rand_seed=None):
+    """Phase-randomized surrogate of multichannel data.
+
+    Each channel is Fourier transformed, the phases are replaced by random
+    phases, and the result is transformed back. The surrogate has the same
+    power spectrum as the data in every channel and is otherwise random.
+
+    Parameters
+    ----------
+    data : 1d, 2d or 3d array
+        Signal, (channel x) sample (x epoch). With epochs (3d), each epoch is
+        randomized separately, so epochs can be discontinuous.
+    shared : bool
+        If True (default), the same random phases are added to all
+        channels: the surrogate keeps the cross-spectra, i.e. all linear
+        correlations between channels, at every lag (Prichard & Theiler,
+        1994). If False, the phases are drawn independently for each
+        channel: the surrogate keeps only the power spectra (Theiler et al.,
+        1992), as in the control of Shriki et al. (2013).
+    rand_seed : int or numpy.random.Generator or None
+        Seed or random number generator.
+
+    Returns
+    -------
+    surrogate : array of the same shape as data (float)
+
+    Notes
+    -----
+    The surrogate is a Gaussian, linear process with the second-order
+    statistics of the data (spectra, and cross-spectra if `shared`). A
+    measure that gives the same value on the data and on shared-phase
+    surrogates carries no information beyond these second-order
+    statistics. This does not make the data non-critical: closeness to a
+    linear instability, for example, shows in second-order statistics
+    (see `lambda_max`).
+
+    The amplitude distribution is not kept: the surrogate is Gaussian.
+    Its signal therefore never departs from a Gaussian, so for avalanches
+    use the event threshold of the data (a number, e.g. from
+    `gaussian_threshold` on the data), not ``threshold='gaussian'``.
+
+    .. versionadded:: 0.3.0
+
+    References
+    ----------
+    - Theiler et al. (1992) Physica D 58(1-4), 77-94.
+    - Prichard & Theiler (1994) Phys Rev Lett 73(7), 951-4.
+    - Shriki et al. (2013) J Neurosci 33(16), 7079-90.
+    """
+    rng = np.random.default_rng(rand_seed)
+    data = np.asarray(data, dtype=float)
+    if data.ndim not in (1, 2, 3):
+        raise ValueError('data must be 1d, 2d or 3d (channel x sample x '
+                         'epoch)')
+    x = data.reshape(1, -1, 1) if data.ndim == 1 else (
+        data[:, :, np.newaxis] if data.ndim == 2 else data)
+    n_chan, n_samp, n_ep = x.shape
+    spec = np.fft.rfft(x, axis=1)
+    n_freq = spec.shape[1]
+    shape = (1, n_freq, n_ep) if shared else (n_chan, n_freq, n_ep)
+    phases = rng.uniform(0, 2 * np.pi, shape)
+    phases[:, 0] = 0                    # the mean stays real
+    if n_samp % 2 == 0:
+        phases[:, -1] = 0               # so does the Nyquist component
+    out = np.fft.irfft(spec * np.exp(1j * phases), n=n_samp, axis=1)
+    return out.reshape(data.shape)
+
+
 def binarized_events(data, threshold='gaussian', thresh_type='both',
                      null_value=0):
     """Convert time series to binary where 1's are the locations of peaks 

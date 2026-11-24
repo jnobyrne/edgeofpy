@@ -7,7 +7,7 @@ import edgeofpy as eop
 
 from edgeofpy.utils import (_detect_start_end, _sec_to_samples,
                             binarized_events, gaussian_threshold,
-                            time_bin_events)
+                            phase_randomize, time_bin_events)
 
 
 # ---------------------------------------------------------- _detect_start_end
@@ -215,6 +215,83 @@ def test_plot_gaussian_threshold(rng):
     _, det = gaussian_threshold(noise_with_bursts(rng), return_details=True)
     ax = eop.plot_gaussian_threshold(det)
     assert len(ax.lines) == 4  # data, Gaussian, two threshold lines
+
+
+# ----------------------------------------------------------- phase_randomize
+
+def correlated_channels(rng, n_chan=4, n_samp=2000, n_ep=None):
+    """Channels mixing a shared, smoothed source with their own noise."""
+    shape = (n_samp,) if n_ep is None else (n_samp, n_ep)
+    src = np.cumsum(rng.standard_normal(shape), axis=0)
+    src -= src.mean(axis=0)
+    chans = [(k + 1) * src + rng.standard_normal(shape) for k in range(n_chan)]
+    return np.stack(chans)
+
+
+@pytest.mark.parametrize('shared', [True, False])
+@pytest.mark.parametrize('n_samp', [2000, 2001])  # even and odd lengths
+def test_phase_randomize_keeps_spectra(rng, shared, n_samp):
+    data = correlated_channels(rng, n_samp=n_samp)
+    surr = phase_randomize(data, shared=shared, rand_seed=1)
+    assert surr.shape == data.shape and np.isrealobj(surr)
+    np.testing.assert_allclose(np.abs(np.fft.rfft(surr, axis=1)),
+                               np.abs(np.fft.rfft(data, axis=1)),
+                               rtol=1e-8, atol=1e-6)
+    np.testing.assert_allclose(surr.mean(axis=1), data.mean(axis=1),
+                               atol=1e-9)
+    assert not np.allclose(surr, data)
+
+
+def test_phase_randomize_shared_keeps_cross_spectra(rng):
+    data = correlated_channels(rng)
+    X = np.fft.rfft(data, axis=1)
+    cross = X[0] * np.conj(X[1:])
+    shared = np.fft.rfft(phase_randomize(data, rand_seed=2), axis=1)
+    np.testing.assert_allclose(shared[0] * np.conj(shared[1:]), cross,
+                               rtol=1e-7, atol=1e-6)
+    np.testing.assert_allclose(np.corrcoef(phase_randomize(data, rand_seed=2)),
+                               np.corrcoef(data), atol=1e-10)
+
+
+def test_phase_randomize_independent_decorrelates(rng):
+    data = correlated_channels(rng, n_samp=20000)
+    assert np.corrcoef(data)[0, 1] > 0.9
+    r = [np.corrcoef(phase_randomize(data, shared=False,
+                                     rand_seed=k))[0, 1]
+         for k in range(20)]
+    assert abs(np.mean(r)) < 0.2
+
+
+def test_phase_randomize_epochs_and_1d(rng):
+    data = correlated_channels(rng, n_samp=500, n_ep=3)
+    surr = phase_randomize(data, rand_seed=3)
+    assert surr.shape == data.shape
+    for e in range(3):  # each epoch keeps its own spectrum
+        np.testing.assert_allclose(
+            np.abs(np.fft.rfft(surr[:, :, e], axis=1)),
+            np.abs(np.fft.rfft(data[:, :, e], axis=1)), rtol=1e-8,
+            atol=1e-6)
+    x = data[0, :, 0]
+    assert phase_randomize(x, rand_seed=3).shape == x.shape
+
+
+def test_phase_randomize_seed_and_errors(rng):
+    data = correlated_channels(rng)
+    np.testing.assert_array_equal(phase_randomize(data, rand_seed=5),
+                                  phase_randomize(data, rand_seed=5))
+    assert not np.allclose(phase_randomize(data, rand_seed=5),
+                           phase_randomize(data, rand_seed=6))
+    with pytest.raises(ValueError, match='1d, 2d or 3d'):
+        phase_randomize(np.zeros((2, 2, 2, 2)))
+
+
+def test_phase_randomize_is_gaussian(rng):
+    # heavy-tailed data give a Gaussian surrogate: no Gaussian threshold
+    data = rng.standard_t(3, size=(10, 20000))
+    assert 1 < gaussian_threshold(data) < 4
+    with pytest.warns(UserWarning, match='does not depart'):
+        assert np.isnan(gaussian_threshold(phase_randomize(data,
+                                                           rand_seed=0)))
 
 
 # ---------------------------------------------------------------- bin_spikes
