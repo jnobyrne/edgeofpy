@@ -77,22 +77,42 @@ package (Alstott et al., 2014), and compares it with alternative
 distributions (exponential, lognormal, truncated power law).
 
 The power law is fitted between a lower bound ``xmin`` and an optional
-upper bound ``xmax``. Choosing ``xmin`` matters more than any other fitting
-choice (:ref:`sphx_glr_auto_examples_plot_02_dcc_reliability.py`):
+upper bound ``xmax``. The fitting range matters more than any other fitting
+choice, and the right range depends on the data.
 
-- **The smallest value** (``xmin='min'``) biases the exponents, because the
-  smallest avalanches do not follow the power law.
-- **The automatic choice** (``xmin=None``, the default) selects the value
-  that makes the fit closest to the data. It suits a single dataset, but it
-  can jump between similar recordings, which then get very different
-  exponents.
+**Models and large spiking populations.** Here the smallest avalanches
+often deviate from the power law: in a branching process, for example, the
+shortest avalanches are too frequent. Fitting all avalanches
+(``xmin='min'``) then biases the exponents
+(:ref:`sphx_glr_auto_examples_plot_02_dcc_reliability.py`).
+
+- **The automatic choice** (``xmin=None``, the default) selects the lower
+  bound that makes the fit closest to the data (Clauset et al., 2009). It
+  suits a single dataset, but it can jump between similar recordings, which
+  then get very different exponents.
 - **Fixed ranges**, the same for all recordings, remove this source of
   spurious differences when comparing recordings. They can be chosen on
   pooled data, or in advance.
 
+**Sensor arrays (M/EEG, ECoG, LFP).** An avalanche cannot involve many
+more events than there are channels, so the size distribution bends down
+near the number of channels N: a finite-size cutoff, which moves with N
+(Shriki et al., 2013). Below the cutoff, the smallest avalanches belong to
+the scale-free range. Fit sizes from 1 to about 1.5 N, e.g.
+``size_range=(1, int(1.5 * n_channels))`` in
+:func:`edgeofpy.estimate_dcc`. The automatic choice is unsuitable here: it
+assumes that the power law continues above ``xmin``, and tends to place
+``xmin`` on the cutoff, so that the fit describes the cutoff (with exponents
+near 3) rather than the scale-free range. Durations are limited even more
+than sizes, and at the sensor level they largely reflect the spectra of the
+signals; check them against surrogates (see below) before interpreting the
+duration exponent or the DCC.
+
 Whatever the choice, a power law is plausible only over a sufficient range:
 at least a decade of sizes and of durations, with a few hundred avalanches
-or more in the fitted range.
+or more in the fitted range. The powerlaw package searches exponents
+between 1 and 3 only; :func:`edgeofpy.fit_powerlaw` warns when a fitted
+exponent sits at one of these limits.
 
 The DCC
 -------
@@ -113,7 +133,8 @@ between the two sides (Ma et al., 2019).
   signed deviation;
 - ``n_avalanches`` estimates the DCC from a fixed number of avalanches;
 - it warns when a fitted range holds fewer than 100 avalanches or spans
-  less than a decade.
+  less than a decade, and when tau is close to 1, where
+  (alpha - 1) / (tau - 1) is very sensitive to small errors in tau.
 
 Two properties of the DCC follow from its definition as an absolute value
 (:ref:`sphx_glr_auto_examples_plot_02_dcc_reliability.py`):
@@ -150,6 +171,9 @@ it as a check of the collapse, not as a test of criticality.
 Gamma depends on the shortest duration included (``min_dur``), as short
 avalanches deviate from the asymptotic shape. ``gamma_by_min_dur`` shows
 this dependence; report gamma together with ``min_dur``.
+:func:`edgeofpy.fit_shape_collapse` warns when gamma lies at an edge of the
+range searched (``gamma_range``); at 0, the profiles do not grow with
+duration.
 
 Testing against surrogates
 --------------------------

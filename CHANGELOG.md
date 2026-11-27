@@ -26,6 +26,10 @@ change behaviour).
 
 ### Added
 
+- Warnings when a fitted power-law exponent is at 1 or 3, the limits of the
+  range searched by powerlaw (`fit_powerlaw`, `estimate_dcc`); when tau is
+  below 1.1, where the DCC is unstable (`estimate_dcc`); and when gamma is
+  at an edge of `gamma_range` (`fit_shape_collapse`).
 - `phase_randomize`: phase-randomized surrogates of multichannel data,
   with phases shared across channels (keeps the cross-spectra) or drawn
   per channel (keeps only the spectra); epochs are randomized separately.
@@ -42,6 +46,13 @@ change behaviour).
 
 ### Documentation
 
+- The user guide, the DCC reliability example, the quickstart and the
+  docstrings of `fit_powerlaw` and `estimate_dcc` distinguish models and
+  spiking data, where the smallest avalanches can deviate from the power
+  law, from sensor arrays (M/EEG), where sizes should be fitted from 1 to
+  about 1.5 times the number of channels (Shriki et al., 2013) rather than
+  from an automatically chosen lower bound, which tends to fall on the
+  finite-size cutoff.
 - Avalanche guide: what a shape collapse does and does not show.
 
 ## [0.2.1] - 2026-11-17

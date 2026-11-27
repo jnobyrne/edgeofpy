@@ -92,7 +92,8 @@ fig.tight_layout()
 
 # %%
 # Fitting all avalanches (``'min'``) gives consistently wrong exponents,
-# because the smallest avalanches do not follow the power law, and DCC values
+# because in this model the smallest avalanches deviate from the power law,
+# and DCC values
 # fall far from 0. The automatic choice works well on some recordings but not 
 # on others: for the duration distribution it sometimes picks a large ``xmin``
 # (above 20 in one case), leaving few avalanches in the fit and an extreme
@@ -192,8 +193,11 @@ for name, r in (('A', matched_a), ('B', matched_b)):
 #
 # Recommendations
 # ---------------
-# - Never fit all avalanches (``xmin='min'``): the smallest avalanches bias
-#   the exponents.
+# - When the smallest avalanches deviate from the power law, as in this
+#   model, do not fit all avalanches (``xmin='min'``). This is not the case
+#   for sensor arrays (M/EEG), where the scale-free range lies below the
+#   number of channels and includes the smallest avalanches: fit sizes from
+#   1 to about 1.5 times the number of channels (see the user guide).
 # - Use the same fitting ranges for all recordings that are compared, e.g.
 #   values chosen automatically on pooled data, or fixed in advance; check
 #   with ``xmin_sensitivity`` how much the DCC depends on them.

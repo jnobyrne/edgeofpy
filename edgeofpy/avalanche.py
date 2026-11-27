@@ -290,7 +290,9 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
         Kolmogorov-Smirnov distance between the data and the fitted power law
         (Clauset et al., 2009). If 'min', the minimum value of `data` is used;
         this biases the exponent if the distribution only follows a power law
-        above some value, as is typical for avalanches.
+        above some value, as for avalanches in many models. For avalanche
+        sizes from sensor arrays (M/EEG), use 1 with `xmax` about 1.5 times
+        the number of channels instead (see Notes).
     xmax : int or float or str or None
         The maximum value below which to fit the data. If None, there is no
         upper limit. If 'max', the maximum value of `data` will be used.
@@ -348,10 +350,27 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
             The summary loglikelihood values for each fit function (power law,
             truncated power law, exponential, lognormal).
 
+    Warns
+    -----
+    UserWarning
+        If the fitted exponent is at 1 or 3, the limits of the range searched
+        by powerlaw: the estimate is then clipped and the true exponent may
+        lie beyond the limit.
+
+        .. versionadded:: 0.3.0
+
     Notes
     -----
     .. versionchanged:: 0.1.0
        The default `xmin` is None (automatic selection) instead of 'min'.
+
+    The automatic choice of `xmin` assumes that the data follow a power law
+    from `xmin` upward. With a cutoff, as for avalanches recorded with a
+    finite array of sensors, whose sizes bend down near the number of
+    channels N, it tends to place `xmin` on the cutoff, and the fit then
+    describes the cutoff (with exponents near 3) rather than the scale-free
+    range. For such data, fit sizes from 1 to about 1.5 N (Shriki et al.,
+    2013).
 
     Automatic selection of `xmin` fits a power law above every candidate
     value, which takes a few times longer than a fixed `xmin`, e.g. about a
@@ -369,6 +388,7 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
     ----------
     - Alstott et al. (2014) PLoS ONE 9(1), e85777.
     - Clauset et al. (2009) SIAM review 51(4), 661-703.
+    - Shriki et al. (2013) J Neurosci 33(16), 7079-90.
     """
     if xmin == 'min':
         xmin = min(data)
@@ -400,6 +420,7 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
     L = -PvL[0] - TvL[0] - EvL[0]
     best_fit = 'PTEL'[np.argmax([P, T, E, L])]
     best_fit_R_sum = np.max([P, T, E, L])
+    _check_exponent_bounds(fit.power_law.alpha)
 
     return {'fit': fit,
             'power_law_exp': fit.power_law.alpha,
@@ -421,6 +442,32 @@ def fit_powerlaw(data, xmin=None, xmax=None, discrete=True):
             'T_R_sum': T,
             'E_R_sum': E,
             'L_R_sum': L,}
+
+
+# Range of exponents searched by powerlaw.Fit for the power law: it does not
+# return values below 1 or above 3 (DEFAULT_PARAMETER_RANGES and its fitting
+# with an upper bound xmax).
+_PL_EXP_LIMITS = (1.0, 3.0)
+
+
+def _check_exponent_bounds(exponent, name='power-law exponent', stacklevel=3):
+    """Warn if a fitted exponent sits at a limit of powerlaw's range."""
+    low, high = _PL_EXP_LIMITS
+    if not np.isfinite(exponent):
+        return
+    if exponent <= low + 5e-3:
+        warnings.warn(f'The fitted {name} ({exponent:.3f}) is at {low:g}, the '
+                      f'lower limit of the range searched by powerlaw: the '
+                      f'true exponent may be smaller, and the estimate should '
+                      f'not be interpreted.', stacklevel=stacklevel)
+    elif exponent >= high - 5e-3:
+        warnings.warn(f'The fitted {name} ({exponent:.3f}) is at {high:g}, '
+                      f'the upper limit of the range searched by powerlaw: '
+                      f'the true exponent may be larger. Exponents this '
+                      f'steep often mean that the fit covers a cutoff rather '
+                      f'than a scale-free range (e.g. above the number of '
+                      f'channels of a sensor array).', stacklevel=stacklevel)
+
 
 def fit_third_exponent(sizes, durations, discrete=True, method='mean',
                        dur_range=None):
@@ -612,7 +659,13 @@ def estimate_dcc(sizes, durations, size_range=(None, None),
     -----
     UserWarning
         If fewer than 100 avalanches fall within a fitted range, or a fitted
-        range spans less than one decade.
+        range spans less than one decade; if tau or alpha is at a limit of
+        the range searched by powerlaw (see `fit_powerlaw`); or if tau is
+        below 1.1, where ``(alpha - 1) / (tau - 1)``, and so the DCC, is very
+        sensitive to small errors in tau.
+
+        .. versionchanged:: 0.3.0
+           The last two warnings were added.
 
     Notes
     -----
@@ -641,12 +694,17 @@ def estimate_dcc(sizes, durations, size_range=(None, None),
     exponents and the DCC even though the underlying dynamics are the same.
     When comparing conditions or subjects, fixed fitting ranges are
     therefore preferable; `xmin_sensitivity` shows how much the DCC depends
-    on them.
+    on them. For avalanches recorded with a sensor array (M/EEG), sizes are
+    limited by the number of channels N, and the automatic choice tends to
+    fall on this cutoff; use ``size_range=(1, about 1.5 N)`` instead
+    (Shriki et al., 2013). Durations are then short; check that their
+    fitted range spans at least a decade before interpreting the DCC.
 
     References
     ----------
     - Ma et al. (2019) Neuron 104(4), 655-64.
     - Clauset et al. (2009) SIAM Rev 51(4), 661-703.
+    - Shriki et al. (2013) J Neurosci 33(16), 7079-90.
     """
     sizes = np.asarray(sizes, dtype=float)
     durations = np.asarray(durations, dtype=float)
@@ -661,11 +719,15 @@ def estimate_dcc(sizes, durations, size_range=(None, None),
                          f'avalanches ({n_total}).')
     rng = np.random.default_rng(rand_seed)
 
-    # fitting ranges, from all avalanches
-    size_fit = fit_powerlaw(sizes, xmin=size_range[0], xmax=size_range[1],
-                            discrete=discrete)
-    dur_fit = fit_powerlaw(durations, xmin=dur_range[0], xmax=dur_range[1],
-                           discrete=discrete)
+    # fitting ranges, from all avalanches; the bound check is done below,
+    # once, on the reported exponents
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', message='The fitted power-law '
+                                'exponent', category=UserWarning)
+        size_fit = fit_powerlaw(sizes, xmin=size_range[0],
+                                xmax=size_range[1], discrete=discrete)
+        dur_fit = fit_powerlaw(durations, xmin=dur_range[0],
+                               xmax=dur_range[1], discrete=discrete)
     s_range = (size_fit['xmin'], size_fit['xmax'])
     d_range = (dur_fit['xmin'], dur_fit['xmax'])
 
@@ -734,6 +796,16 @@ def estimate_dcc(sizes, durations, size_range=(None, None),
                 grid[i, j] = _dcc_fixed_ranges(sizes, durations, sr, dr,
                                                discrete, third_method)['dcc']
         grid_range = (np.nanmin(grid), np.nanmax(grid))
+
+    _check_exponent_bounds(point['tau'], 'size exponent tau')
+    _check_exponent_bounds(point['alpha'], 'duration exponent alpha')
+    if (np.isfinite(point['tau']) and point['tau'] < 1.1
+            and point['tau'] > _PL_EXP_LIMITS[0] + 5e-3):
+        warnings.warn(f"tau = {point['tau']:.3f} is close to 1, where "
+                      f"(alpha - 1) / (tau - 1) is very sensitive to tau: an "
+                      f"error of 0.01 in tau changes it by about "
+                      f"{0.01 * abs(point['alpha'] - 1) / (point['tau'] - 1) ** 2:.2g}. "
+                      f"The DCC is unreliable.", stacklevel=2)
 
     return {'dcc': point['dcc'],
             'dcc_signed': point['dcc_signed'],
@@ -1007,6 +1079,16 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
             Mean profile of each duration T (T values, one per time bin),
             neither rescaled nor interpolated.
 
+    Warns
+    -----
+    UserWarning
+        If gamma is at an edge of `gamma_range`, where the best collapse may
+        lie outside the range searched. With the default range, a gamma of 0
+        means that the mean profiles do not grow with duration (flat
+        profiles), as for bursts of roughly constant activity.
+
+        .. versionadded:: 0.3.0
+
     Notes
     -----
     Bootstrap resamples draw avalanches with replacement and give percentile
@@ -1042,6 +1124,13 @@ def fit_shape_collapse(avalanches, gamma_range=(0., 3.), step=0.1,
                 'profiles': profiles}
 
     res = fit(avalanches, gamma_range, min_dur)
+    for edge, side in ((gamma_range[0], 'lower'), (gamma_range[1], 'upper')):
+        if abs(res['gamma'] - edge) < 1e-6:
+            hint = (' A gamma of 0 means that the mean profiles do not grow '
+                    'with duration (flat profiles).' if edge == 0 else '')
+            warnings.warn(f"gamma ({res['gamma']:g}) is at the {side} edge of "
+                          f"gamma_range {tuple(gamma_range)}: the best "
+                          f"collapse may lie outside it.{hint}", stacklevel=2)
 
     gamma_by_min_dur = {}
     for md in (min_dur_check or ()):

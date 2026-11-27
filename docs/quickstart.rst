@@ -27,7 +27,9 @@ the deviation from criticality coefficient (DCC):
    sizes = np.array([a['size'] for a in avls])
    durations = np.array([a['dur_bin'] for a in avls])
 
-   fit_s = eop.fit_powerlaw(sizes)          # xmin chosen automatically
+   # xmin chosen automatically; for sensor data (M/EEG), fit sizes below
+   # the channel count instead: xmin=1, xmax=int(1.5 * n_channels)
+   fit_s = eop.fit_powerlaw(sizes)
    fit_d = eop.fit_powerlaw(durations)
    third = eop.fit_third_exponent(sizes, durations,
                                   dur_range=(fit_d['xmin'], fit_d['xmax']))

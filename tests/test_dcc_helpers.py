@@ -325,3 +325,76 @@ def test_plot_shape_collapse_into_axes():
 def test_lattice_search_lives_in_utils():
     from edgeofpy.utils import lattice_search
     assert eop.lattice_search is lattice_search
+
+
+# ------------------------------------------------- warnings at fitting limits
+
+def truncated_powerlaw(rng, exponent, high=400, n=20000):
+    k = np.arange(1, high + 1)
+    p = k ** -float(exponent)
+    return rng.choice(k, size=n, p=p / p.sum())
+
+
+def bound_warnings(caught, text='The fitted'):
+    return [str(w.message) for w in caught if str(w.message).startswith(text)
+            or 'is at 1, the lower' in str(w.message)
+            or 'is at 3, the upper' in str(w.message)]
+
+
+@pytest.mark.parametrize('exponent, limit', [(0.8, 'lower'), (3.6, 'upper')])
+def test_fit_powerlaw_warns_at_limits(rng, exponent, limit):
+    x = truncated_powerlaw(rng, exponent)
+    with pytest.warns(UserWarning, match=f'the {limit} limit of the range'):
+        res = eop.fit_powerlaw(x, xmin=1, xmax=400)
+    assert res['power_law_exp'] == pytest.approx(1 if limit == 'lower' else 3,
+                                                 abs=0.01)
+
+
+def test_fit_powerlaw_no_limit_warning_inside_range(rng):
+    x = truncated_powerlaw(rng, 2.0)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        eop.fit_powerlaw(x, xmin=1, xmax=400)
+    assert not [w for w in caught if 'limit of the range' in str(w.message)]
+
+
+def test_estimate_dcc_limit_warning_once(rng):
+    s = truncated_powerlaw(rng, 0.8)
+    d = truncated_powerlaw(rng, 2.0, high=50)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        eop.estimate_dcc(s, d, size_range=(1, 400), dur_range=(1, 50))
+    msgs = [str(w.message) for w in caught if 'limit of the range'
+            in str(w.message)]
+    assert len(msgs) == 1 and msgs[0].startswith('The fitted size exponent')
+
+
+def test_estimate_dcc_warns_tau_close_to_one(rng):
+    s = truncated_powerlaw(rng, 1.05)
+    d = truncated_powerlaw(rng, 2.0, high=50)
+    with pytest.warns(UserWarning, match='close to 1'):
+        res = eop.estimate_dcc(s, d, size_range=(1, 400), dur_range=(1, 50))
+    assert 1.005 < res['tau'] < 1.1
+
+
+def test_estimate_dcc_no_tau_warning_for_good_data(critical_avls):
+    s, d = sizes_durations(critical_avls)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        eop.estimate_dcc(s, d, size_range=(2, None), dur_range=(3, None))
+    assert not [w for w in caught if 'close to 1' in str(w.message)
+                or 'limit of the range' in str(w.message)]
+
+
+def test_fit_shape_collapse_warns_at_edge():
+    # flat profiles: gamma at the lower edge of the default range
+    with pytest.warns(UserWarning, match='lower edge of gamma_range.*flat'):
+        res = eop.fit_shape_collapse(scaled_avalanches(0.0))
+    assert res['gamma'] == 0
+    # true gamma below the range: the error is lowest at the upper edge
+    with pytest.warns(UserWarning, match='upper edge of gamma_range'):
+        eop.fit_shape_collapse(scaled_avalanches(-0.5))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        eop.fit_shape_collapse(scaled_avalanches(1.0))
+    assert not [w for w in caught if 'gamma_range' in str(w.message)]
