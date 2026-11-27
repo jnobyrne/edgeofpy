@@ -44,6 +44,14 @@ change behaviour).
   for large spiking populations, where bins without any spike are rare.
 - `fit_shape_collapse`: `tau` and `alpha` arguments.
 
+### Changed
+
+- `lambda_max` moved from `edgeofpy.chaos` to a new module,
+  `edgeofpy.stability`: it measures the distance to the edge of stability,
+  a different transition from the edge of chaos. `edgeofpy.lambda_max` is
+  unchanged; importing it from `edgeofpy.chaos` still works, with a
+  DeprecationWarning, until version 1.0.
+
 ### Documentation
 
 - The user guide, the DCC reliability example, the quickstart and the

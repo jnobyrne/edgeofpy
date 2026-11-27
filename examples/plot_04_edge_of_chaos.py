@@ -1,15 +1,15 @@
 """
-Edge of chaos
-=============
+Edge of chaos and stability
+===========================
 
-edgeofpy has two measures of the distance to the edge of chaos:
+edgeofpy has measures of two related transitions:
 
 - the modified **0-1 test for chaos** (:func:`edgeofpy.z1_chaos_test`,
   :func:`edgeofpy.chaos_pipeline`), which classifies a single time series as
-  regular (K close to 0) or chaotic (K close to 1);
+  regular (K close to 0) or chaotic (K close to 1): the edge of chaos;
 - **lambda max** (:func:`edgeofpy.lambda_max`), which estimates, from the
   covariances of many recorded units, how close a network is to the edge of
-  instability (lambda max = 1).
+  instability (lambda max = 1): the edge of stability.
 
 This example tests both on systems where the answer is known: the logistic
 map, whose dynamics change from periodic to chaotic as its parameter r
@@ -93,8 +93,9 @@ for label, r in (('periodic', 3.5), ('chaotic', 3.9)):
 # the dispersion of the covariances between units (Dahmen et al., 2019),
 # here from 100 trials of 1000 time steps. The number of units ``N`` in the
 # network is an input of the method; with M/EEG data it must be estimated.
-# Note that a lambda max of 1 corresponds to the edge of chaos, with chaos
-# above 1 and stable/regular dynamics below 1.
+# A lambda max of 1 marks the edge of stability: above it, the activity of
+# a linear network diverges. This is a different transition from the edge
+# of chaos tested above, although the two coincide in some network models.
 
 truths = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 0.98]
 est = {'corrected': [], 'without bias correction': [],

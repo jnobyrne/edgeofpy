@@ -43,9 +43,18 @@ Edge-of-chaos measures.
 
    z1_chaos_test
    chaos_pipeline
-   lambda_max
    minmaxsig
    schreiber_denoise
+
+Stability
+---------
+
+Distance to instability.
+
+.. autosummary::
+   :toctree: generated/
+
+   lambda_max
 
 Synchrony
 ---------

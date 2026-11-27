@@ -24,10 +24,10 @@ from edgeofpy.avalanche import (detect_avalanches,
                                 )
 from edgeofpy.chaos import (z1_chaos_test,
                             chaos_pipeline,
-                            lambda_max,
                             minmaxsig,
                             schreiber_denoise,
                             )
+from edgeofpy.stability import lambda_max
 from edgeofpy.synchrony import (pcf,
                                 pli,
                                 ple,
@@ -71,8 +71,9 @@ __all__ = [
     'avl_pattern_dissimilarity', 'avl_branching_ratio', 'branching_ratio',
     'susceptibility', 'fano_factor',
     # chaos
-    'z1_chaos_test', 'chaos_pipeline', 'lambda_max', 'minmaxsig',
-    'schreiber_denoise',
+    'z1_chaos_test', 'chaos_pipeline', 'minmaxsig', 'schreiber_denoise',
+    # stability
+    'lambda_max',
     # synchrony
     'pcf', 'pli', 'ple', 'complex_phase_relationship', 'phase_locking',
     'phase_lock_interval', 'global_lability', 'detect_phase_avls',

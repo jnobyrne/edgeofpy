@@ -24,11 +24,16 @@ a system lies, or how far into one of its sides.
        transition. Susceptibility, Fano factor: size of fluctuations,
        which peak at the transition.
    * - Chaos
-     - Between stable (regular) and chaotic dynamics
-     - Single signals (0-1 test); many units with trials (lambda max)
+     - Between regular and chaotic dynamics
+     - Single signals
      - 0-1 test: whether a signal is chaotic (K close to 1) or regular
-       (K close to 0). Lambda max: how close a network is to instability
-       (1).
+       (K close to 0).
+   * - Stability
+     - Between stable and unstable (diverging) dynamics of the effective
+       connectivity; a different transition from the edge of chaos,
+       although the two coincide in some network models
+     - Many units, with trials (signals or event counts)
+     - Lambda max: how close the network is to instability (1).
    * - Synchrony
      - Between incoherent and synchronized oscillations
      - Band-pass filtered signals
